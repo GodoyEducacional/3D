@@ -46,8 +46,8 @@
   <body>
     <!-- Tela inicial -->
     <div id="inicio">
-      <img src="logo.png" alt="Minha Logo" />
-      <button id="startBtn">Inicie</button>
+      <img src="img/shiny-metallic-3d.jpg" alt="Minha Logo" />
+      <button id="startBtn">Abrir com a Câmera</button>
     </div>
 
     <!-- Viewer AR -->
@@ -56,8 +56,9 @@
       src="elefante.glb"
       ar
       ar-modes="webxr scene-viewer quick-look"
-      camera-controls
-      auto-rotate
+      ar-placement="floor"
+      ar-scale="auto"
+      interaction-prompt="when-needed"
       background-color="#111"
     ></model-viewer>
 
