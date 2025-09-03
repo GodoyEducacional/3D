@@ -1,18 +1,3 @@
-// Instruções na tela
-const instructions = document.createElement('div');
-instructions.textContent = 'Toque para posicionar. Arraste para mover. Pinça para escalar. Dois dedos para girar.';
-instructions.style.position = 'fixed';
-instructions.style.top = '10px';
-instructions.style.left = '50%';
-instructions.style.transform = 'translateX(-50%)';
-instructions.style.background = 'rgba(0,0,0,0.7)';
-instructions.style.color = '#fff';
-instructions.style.padding = '10px 20px';
-instructions.style.borderRadius = '12px';
-instructions.style.fontSize = '16px';
-instructions.style.zIndex = '1001';
-instructions.style.pointerEvents = 'none';
-document.body.appendChild(instructions);
 import * as THREE from "three";
 import { ARButton } from "three/examples/jsm/webxr/ARButton.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -88,8 +73,7 @@ function onWindowResize() {
 }
 
 function onSelect() {
-  // Adiciona ou reposiciona o modelo exatamente onde o usuário clicar
-  // Obtém coordenadas de toque
+  // Adiciona ou reposiciona o modelo no ponto de toque, adaptado para o plano do chão
   let touchX = window.innerWidth / 2;
   let touchY = window.innerHeight / 2;
   if (renderer.xr.isPresenting && renderer.domElement.lastTouch) {
@@ -106,16 +90,19 @@ function onSelect() {
   const planeY = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   const intersect = new THREE.Vector3();
   raycaster.ray.intersectPlane(planeY, intersect);
+  // Adapta a escala para garantir que o modelo não fique gigante
+  const modeloEscala = 0.05;
   if (!model) {
     const loader = new GLTFLoader();
     loader.load("/elefante.glb", (gltf) => {
       model = gltf.scene;
-      model.scale.set(0.1, 0.1, 0.1);
+      model.scale.set(modeloEscala, modeloEscala, modeloEscala);
       model.position.copy(intersect);
       scene.add(model);
       enableGestures(model);
     });
   } else {
+    model.scale.set(modeloEscala, modeloEscala, modeloEscala);
     model.position.copy(intersect);
   }
   // Captura último toque para raycast
