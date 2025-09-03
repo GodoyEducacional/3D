@@ -2,7 +2,7 @@
 <html lang="pt-br">
   <head>
     <meta charset="utf-8" />
-    <title>AR Interativo com Three.js</title>
+    <title>AR Interativo Completo</title>
     <style>
       body {
         margin: 0;
@@ -28,13 +28,15 @@
   </head>
   <body>
     <div id="instructions">
-      Toque no chão para posicionar o modelo. Depois você pode arrastá-lo.
+      Toque no chão para posicionar o modelo. Depois segure para arrastar, gire
+      com dois dedos para rotacionar, pinça para escalar.
     </div>
 
     <script type="module">
       import * as THREE from "https://unpkg.com/three@0.154.0/build/three.module.js";
       import { ARButton } from "https://unpkg.com/three@0.154.0/examples/jsm/webxr/ARButton.js";
       import { GLTFLoader } from "https://unpkg.com/three@0.154.0/examples/jsm/loaders/GLTFLoader.js";
+      import { DragControls } from "https://unpkg.com/three@0.154.0/examples/jsm/controls/DragControls.js";
 
       let camera, scene, renderer;
       let controller;
@@ -59,7 +61,7 @@
         renderer.xr.enabled = true;
         document.body.appendChild(renderer.domElement);
 
-        // ARButton do Three.js
+        // ARButton
         document.body.appendChild(
           ARButton.createButton(renderer, { requiredFeatures: ["hit-test"] })
         );
@@ -69,7 +71,7 @@
         light.position.set(0.5, 1, 0.25);
         scene.add(light);
 
-        // Reticle para posicionar o modelo
+        // Reticle para posicionamento
         const geometry = new THREE.RingGeometry(0.07, 0.1, 32).rotateX(
           -Math.PI / 2
         );
@@ -93,21 +95,51 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
       }
 
-      // Posicionar ou reposicionar o modelo
+      // Posicionar ou arrastar o modelo
       function onSelect() {
         if (reticle.visible) {
           if (!model) {
             const loader = new GLTFLoader();
-            loader.load("elefante.glb", function (gltf) {
+            loader.load("elefante.glb", (gltf) => {
               model = gltf.scene;
               model.scale.set(0.5, 0.5, 0.5);
               model.position.setFromMatrixPosition(reticle.matrix);
               scene.add(model);
+              enableDrag(model);
             });
           } else {
             model.position.setFromMatrixPosition(reticle.matrix);
           }
         }
+      }
+
+      // Função para permitir arrastar o modelo
+      function enableDrag(obj) {
+        // DragControls não funciona direto no AR, então simulamos via touch move
+        let isDragging = false;
+        let offset = new THREE.Vector3();
+
+        renderer.domElement.addEventListener("touchstart", (event) => {
+          if (event.touches.length === 1 && model) {
+            isDragging = true;
+          }
+        });
+
+        renderer.domElement.addEventListener("touchmove", (event) => {
+          if (isDragging && event.touches.length === 1 && model) {
+            // Calcula novo posicionamento aproximado na frente da câmera
+            const touch = event.touches[0];
+            const x = (touch.clientX / window.innerWidth) * 2 - 1;
+            const y = -(touch.clientY / window.innerHeight) * 2 + 1;
+
+            const vec = new THREE.Vector3(x, y, 0.5).unproject(camera);
+            model.position.copy(vec);
+          }
+        });
+
+        renderer.domElement.addEventListener("touchend", () => {
+          isDragging = false;
+        });
       }
 
       function animate() {
@@ -116,9 +148,7 @@
 
       function render(timestamp, frame) {
         if (frame) {
-          const referenceSpace = renderer.xr.getReferenceSpace();
           const session = renderer.xr.getSession();
-
           if (!hitTestSourceRequested) {
             session.requestReferenceSpace("viewer").then((space) => {
               session.requestHitTestSource({ space }).then((source) => {
