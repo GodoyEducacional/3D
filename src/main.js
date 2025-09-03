@@ -91,7 +91,7 @@ function onSelect() {
   const intersect = new THREE.Vector3();
   raycaster.ray.intersectPlane(planeY, intersect);
   // Adapta a escala para garantir que o modelo não fique gigante
-  const modeloEscala = 0.05;
+  const modeloEscala = 0.02;
   if (!model) {
     const loader = new GLTFLoader();
     loader.load("/elefante.glb", (gltf) => {
@@ -99,77 +99,18 @@ function onSelect() {
       model.scale.set(modeloEscala, modeloEscala, modeloEscala);
       model.position.copy(intersect);
       scene.add(model);
-      enableGestures(model);
     });
   } else {
     model.scale.set(modeloEscala, modeloEscala, modeloEscala);
     model.position.copy(intersect);
   }
   // Captura último toque para raycast
-  renderer.domElement.addEventListener('touchstart', (e) => {
+  renderer.domElement.addEventListener("touchstart", (e) => {
     if (e.touches.length === 1) {
       renderer.domElement.lastTouch = e.touches[0];
     }
   });
-// Adiciona controles de toque para arrastar, rotacionar e escalar
-function enableGestures(obj) {
-  let isDragging = false;
-  let lastX = 0, lastY = 0;
-  let lastDist = 0;
-  let lastRotation = 0;
-
-  renderer.domElement.addEventListener('touchstart', (e) => {
-    if (e.touches.length === 1) {
-      isDragging = true;
-      lastX = e.touches[0].clientX;
-      lastY = e.touches[0].clientY;
-    } else if (e.touches.length === 2) {
-      lastDist = getDistance(e.touches[0], e.touches[1]);
-      lastRotation = getAngle(e.touches[0], e.touches[1]);
-    }
-  });
-
-  renderer.domElement.addEventListener('touchmove', (e) => {
-    if (isDragging && e.touches.length === 1) {
-      const dx = e.touches[0].clientX - lastX;
-      const dy = e.touches[0].clientY - lastY;
-      lastX = e.touches[0].clientX;
-      lastY = e.touches[0].clientY;
-      // Sensibilidade melhorada para arrastar
-      obj.position.x += dx * 0.003;
-      obj.position.z -= dy * 0.003;
-    } else if (e.touches.length === 2) {
-      // Escala com limite mínimo/máximo
-      const newDist = getDistance(e.touches[0], e.touches[1]);
-      let scaleChange = newDist / lastDist;
-      let newScale = obj.scale.x * scaleChange;
-      newScale = Math.max(0.05, Math.min(newScale, 2));
-      obj.scale.set(newScale, newScale, newScale);
-      lastDist = newDist;
-      // Rotação mais suave
-      const newRotation = getAngle(e.touches[0], e.touches[1]);
-      const rotChange = newRotation - lastRotation;
-      obj.rotation.y += rotChange * Math.PI / 360;
-      lastRotation = newRotation;
-    }
-  });
-
-  renderer.domElement.addEventListener('touchend', (e) => {
-    isDragging = false;
-  });
-}
-
-function getDistance(t1, t2) {
-  const dx = t2.clientX - t1.clientX;
-  const dy = t2.clientY - t1.clientY;
-  return Math.sqrt(dx * dx + dy * dy);
-}
-
-function getAngle(t1, t2) {
-  const dx = t2.clientX - t1.clientX;
-  const dy = t2.clientY - t1.clientY;
-  return Math.atan2(dy, dx) * 180 / Math.PI;
-}
+  // Adiciona controles de toque para arrastar, rotacionar e escalar
 }
 
 function animate() {
