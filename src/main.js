@@ -1,3 +1,18 @@
+// Instruções na tela
+const instructions = document.createElement('div');
+instructions.textContent = 'Toque para posicionar. Arraste para mover. Pinça para escalar. Dois dedos para girar.';
+instructions.style.position = 'fixed';
+instructions.style.top = '10px';
+instructions.style.left = '50%';
+instructions.style.transform = 'translateX(-50%)';
+instructions.style.background = 'rgba(0,0,0,0.7)';
+instructions.style.color = '#fff';
+instructions.style.padding = '10px 20px';
+instructions.style.borderRadius = '12px';
+instructions.style.fontSize = '16px';
+instructions.style.zIndex = '1001';
+instructions.style.pointerEvents = 'none';
+document.body.appendChild(instructions);
 import * as THREE from "three";
 import { ARButton } from "three/examples/jsm/webxr/ARButton.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -55,13 +70,8 @@ function init() {
   light.position.set(0.5, 1, 0.25);
   scene.add(light);
 
-  // Reticle
-  const geometry = new THREE.RingGeometry(0.07, 0.1, 32).rotateX(-Math.PI / 2);
-  const material = new THREE.MeshBasicMaterial({ color: 0xff9800 });
-  reticle = new THREE.Mesh(geometry, material);
-  reticle.matrixAutoUpdate = false;
-  reticle.visible = false;
-  scene.add(reticle);
+  // Não cria retículo visual
+  reticle = null;
 
   // Controller
   controller = renderer.xr.getController(0);
@@ -78,16 +88,42 @@ function onWindowResize() {
 }
 
 function onSelect() {
-  if (reticle.visible && !model) {
+  // Adiciona ou reposiciona o modelo exatamente onde o usuário clicar
+  // Obtém coordenadas de toque
+  let touchX = window.innerWidth / 2;
+  let touchY = window.innerHeight / 2;
+  if (renderer.xr.isPresenting && renderer.domElement.lastTouch) {
+    touchX = renderer.domElement.lastTouch.clientX;
+    touchY = renderer.domElement.lastTouch.clientY;
+  }
+  // Converte para coordenadas normalizadas
+  const x = (touchX / window.innerWidth) * 2 - 1;
+  const y = -(touchY / window.innerHeight) * 2 + 1;
+  // Raycast do ponto de toque
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera({ x, y }, camera);
+  // Interseção com plano Y=0 (chão)
+  const planeY = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  const intersect = new THREE.Vector3();
+  raycaster.ray.intersectPlane(planeY, intersect);
+  if (!model) {
     const loader = new GLTFLoader();
     loader.load("/elefante.glb", (gltf) => {
-  model = gltf.scene;
-  model.scale.set(0.1, 0.1, 0.1); // escala menor
-      model.position.setFromMatrixPosition(reticle.matrix);
+      model = gltf.scene;
+      model.scale.set(0.1, 0.1, 0.1);
+      model.position.copy(intersect);
       scene.add(model);
       enableGestures(model);
     });
+  } else {
+    model.position.copy(intersect);
   }
+  // Captura último toque para raycast
+  renderer.domElement.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) {
+      renderer.domElement.lastTouch = e.touches[0];
+    }
+  });
 // Adiciona controles de toque para arrastar, rotacionar e escalar
 function enableGestures(obj) {
   let isDragging = false;
@@ -112,19 +148,21 @@ function enableGestures(obj) {
       const dy = e.touches[0].clientY - lastY;
       lastX = e.touches[0].clientX;
       lastY = e.touches[0].clientY;
-      // Move o modelo no plano X/Z
-      obj.position.x += dx * 0.01;
-      obj.position.z -= dy * 0.01;
+      // Sensibilidade melhorada para arrastar
+      obj.position.x += dx * 0.003;
+      obj.position.z -= dy * 0.003;
     } else if (e.touches.length === 2) {
-      // Escala
+      // Escala com limite mínimo/máximo
       const newDist = getDistance(e.touches[0], e.touches[1]);
-      const scaleChange = newDist / lastDist;
-      obj.scale.multiplyScalar(scaleChange);
+      let scaleChange = newDist / lastDist;
+      let newScale = obj.scale.x * scaleChange;
+      newScale = Math.max(0.05, Math.min(newScale, 2));
+      obj.scale.set(newScale, newScale, newScale);
       lastDist = newDist;
-      // Rotação
+      // Rotação mais suave
       const newRotation = getAngle(e.touches[0], e.touches[1]);
       const rotChange = newRotation - lastRotation;
-      obj.rotation.y += rotChange * Math.PI / 180;
+      obj.rotation.y += rotChange * Math.PI / 360;
       lastRotation = newRotation;
     }
   });
@@ -152,34 +190,5 @@ function animate() {
 }
 
 function render(timestamp, frame) {
-  if (frame) {
-    const session = renderer.xr.getSession();
-
-    if (!hitTestSourceRequested) {
-      session.requestReferenceSpace("viewer").then((refSpace) => {
-        session.requestHitTestSource({ space: refSpace }).then((source) => {
-          hitTestSource = source;
-        });
-      });
-      session.addEventListener("end", () => {
-        hitTestSourceRequested = false;
-        hitTestSource = null;
-      });
-      hitTestSourceRequested = true;
-    }
-
-    if (hitTestSource) {
-      const hitTestResults = frame.getHitTestResults(hitTestSource);
-      if (hitTestResults.length > 0) {
-        const hit = hitTestResults[0];
-        const pose = hit.getPose(renderer.xr.getReferenceSpace());
-        reticle.visible = true;
-        reticle.matrix.fromArray(pose.transform.matrix);
-      } else {
-        reticle.visible = false;
-      }
-    }
-  }
-
   renderer.render(scene, camera);
 }
