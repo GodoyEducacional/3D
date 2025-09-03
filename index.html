@@ -2,7 +2,7 @@
 <html lang="pt-br">
   <head>
     <meta charset="utf-8" />
-    <title>AR Touch Placement Interativo</title>
+    <title>AR Interativo com Three.js</title>
     <style>
       body {
         margin: 0;
@@ -11,46 +11,29 @@
         font-family: sans-serif;
         color: white;
       }
-      #inicio {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        gap: 20px;
-        background: #111;
-        z-index: 10;
-      }
-      #inicio img {
-        width: 200px;
-        border-radius: 12px;
-      }
-      #inicio button {
-        padding: 12px 24px;
-        font-size: 18px;
-        background: #ff9800;
-        color: white;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-      }
       canvas {
         display: block;
+      }
+      #instructions {
+        position: absolute;
+        top: 20px;
+        width: 100%;
+        text-align: center;
+        color: #ff9800;
+        font-size: 18px;
+        z-index: 10;
+        pointer-events: none;
       }
     </style>
   </head>
   <body>
-    <div id="inicio">
-      <img src="img/shiny-metallic-3d.jpg" alt="Logo" />
-      <button id="startBtn">Inicie</button>
+    <div id="instructions">
+      Toque no chão para posicionar o modelo. Depois você pode arrastá-lo.
     </div>
 
     <script type="module">
       import * as THREE from "https://unpkg.com/three@0.154.0/build/three.module.js";
+      import { ARButton } from "https://unpkg.com/three@0.154.0/examples/jsm/webxr/ARButton.js";
       import { GLTFLoader } from "https://unpkg.com/three@0.154.0/examples/jsm/loaders/GLTFLoader.js";
 
       let camera, scene, renderer;
@@ -59,29 +42,8 @@
       let hitTestSource = null;
       let hitTestSourceRequested = false;
 
-      const startBtn = document.getElementById("startBtn");
-      const inicio = document.getElementById("inicio");
-
-      startBtn.addEventListener("click", async () => {
-        inicio.style.display = "none"; // esconde logo
-        init();
-        animate();
-
-        // Inicia AR corretamente
-        if (navigator.xr) {
-          try {
-            const session = await navigator.xr.requestSession("immersive-ar", {
-              requiredFeatures: ["hit-test", "dom-overlay"],
-              domOverlay: { root: document.body },
-            });
-            renderer.xr.setSession(session);
-          } catch (err) {
-            console.error("AR não suportado ou usuário negou:", err);
-          }
-        } else {
-          alert("WebXR não suportado nesse dispositivo.");
-        }
-      });
+      init();
+      animate();
 
       function init() {
         scene = new THREE.Scene();
@@ -97,6 +59,12 @@
         renderer.xr.enabled = true;
         document.body.appendChild(renderer.domElement);
 
+        // ARButton do Three.js
+        document.body.appendChild(
+          ARButton.createButton(renderer, { requiredFeatures: ["hit-test"] })
+        );
+
+        // Luz
         const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
         light.position.set(0.5, 1, 0.25);
         scene.add(light);
@@ -125,7 +93,7 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
       }
 
-      // Posicionar ou reposicionar modelo
+      // Posicionar ou reposicionar o modelo
       function onSelect() {
         if (reticle.visible) {
           if (!model) {
