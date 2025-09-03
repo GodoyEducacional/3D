@@ -1,3 +1,5 @@
+// Variável global para controlar gesto de rotação
+window.isRotating = false;
 import * as THREE from "three";
 import { ARButton } from "three/examples/jsm/webxr/ARButton.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -113,6 +115,7 @@ function enableRotation(obj) {
     if (e.touches.length === 2) {
       lastRotation = getAngle(e.touches[0], e.touches[1]);
       rotating = true;
+      window.isRotating = true;
     }
   });
   renderer.domElement.addEventListener('touchmove', (e) => {
@@ -124,8 +127,13 @@ function enableRotation(obj) {
     }
   });
   renderer.domElement.addEventListener('touchend', (e) => {
-    if (e.touches.length < 2) rotating = false;
+    if (e.touches.length < 2) {
+      rotating = false;
+      window.isRotating = false;
+    }
   });
+  // Só reposiciona se não estiver em gesto de rotação (dois dedos)
+  if (window.isRotating) return;
 }
 
 function getAngle(t1, t2) {
