@@ -2,7 +2,7 @@
 <html lang="pt-br">
   <head>
     <meta charset="utf-8" />
-    <title>Visualizador 3D AR</title>
+    <title>AR Touch Placement</title>
     <script
       type="module"
       src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"
@@ -10,30 +10,24 @@
     <style>
       body {
         margin: 0;
-        overflow: hidden;
         background: #111;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
         font-family: sans-serif;
         color: white;
       }
       #inicio {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
         display: flex;
         flex-direction: column;
-        justify-content: center;
         align-items: center;
         gap: 20px;
-        background: #111;
-        z-index: 10;
       }
       #inicio img {
         width: 200px;
-        border-radius: 12px;
         background: #111;
-        padding: 8px;
+        border-radius: 12px;
       }
       #inicio button {
         padding: 12px 24px;
@@ -44,37 +38,42 @@
         border-radius: 8px;
         cursor: pointer;
       }
-      canvas {
-        display: block;
+      model-viewer {
+        width: 100%;
+        height: 100%;
+        display: none; /* só mostra quando abrir AR */
       }
     </style>
   </head>
   <body>
+    <!-- Tela inicial -->
     <div id="inicio">
-      <img src="img/shiny-metallic-3d.jpg" alt="Minha Logo" />
-      <button id="startBtn">Abrir com a Câmera</button>
+      <img src="img/shiny-metallic-3d.jpg" alt="Logo" />
+      <button id="startBtn">Inicie</button>
     </div>
 
-    <script type="module">
-      import * as THREE from "https://unpkg.com/three@0.154.0/build/three.module.js";
-      import { ARButton } from "https://unpkg.com/three@0.154.0/examples/jsm/webxr/ARButton.js";
-      import { GLTFLoader } from "https://unpkg.com/three@0.154.0/examples/jsm/loaders/GLTFLoader.js";
+    <!-- Viewer AR -->
+    <model-viewer
+      id="viewer"
+      src="elefante.glb"
+      ar
+      ar-modes="webxr scene-viewer quick-look"
+      ar-placement="floor"
+      ar-scale="auto"
+      interaction-prompt="always"
+      background-color="#111"
+    ></model-viewer>
 
-      let camera, scene, renderer;
-      let controller;
-      let reticle, model;
-      let hitTestSource = null;
-      let hitTestSourceRequested = false;
-
+    <script>
       const startBtn = document.getElementById("startBtn");
       const inicio = document.getElementById("inicio");
       const viewer = document.getElementById("viewer");
 
       startBtn.addEventListener("click", async () => {
-        inicio.style.display = "none"; // esconde logo + botão
-        viewer.style.display = "block"; // exibe o viewer
+        inicio.style.display = "none"; // esconde logo
+        viewer.style.display = "block"; // mostra AR
         try {
-          // abre AR e espera o clique do usuário
+          // ativa AR, mas o modelo só aparece quando o usuário tocar
           await viewer.activateAR();
         } catch (err) {
           console.error("Erro ao iniciar AR:", err);
