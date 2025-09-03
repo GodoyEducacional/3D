@@ -99,11 +99,40 @@ function onSelect() {
       model.scale.set(modeloEscala, modeloEscala, modeloEscala);
       model.position.copy(intersect);
       scene.add(model);
+      enableRotation(model);
     });
   } else {
     model.scale.set(modeloEscala, modeloEscala, modeloEscala);
     model.position.copy(intersect);
   }
+// Permite rotacionar o modelo com dois dedos
+function enableRotation(obj) {
+  let lastRotation = 0;
+  let rotating = false;
+  renderer.domElement.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
+      lastRotation = getAngle(e.touches[0], e.touches[1]);
+      rotating = true;
+    }
+  });
+  renderer.domElement.addEventListener('touchmove', (e) => {
+    if (rotating && e.touches.length === 2) {
+      const newRotation = getAngle(e.touches[0], e.touches[1]);
+      const rotChange = newRotation - lastRotation;
+      obj.rotation.y += rotChange * Math.PI / 180;
+      lastRotation = newRotation;
+    }
+  });
+  renderer.domElement.addEventListener('touchend', (e) => {
+    if (e.touches.length < 2) rotating = false;
+  });
+}
+
+function getAngle(t1, t2) {
+  const dx = t2.clientX - t1.clientX;
+  const dy = t2.clientY - t1.clientY;
+  return Math.atan2(dy, dx) * 180 / Math.PI;
+}
   // Captura último toque para raycast
   renderer.domElement.addEventListener("touchstart", (e) => {
     if (e.touches.length === 1) {
