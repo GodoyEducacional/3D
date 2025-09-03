@@ -1,29 +1,81 @@
-<model-viewer
-  src="elefante.glb"
-  auto-rotate
-  camera-controls
-  background-color="#111"
-  ar
-  ar-modes="webxr scene-viewer quick-look"
-  ar-scale="auto"
-  ar-placement="floor"
->
-  <button
-    slot="ar-button"
-    style="
-      position: absolute;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      padding: 12px 24px;
-      font-size: 16px;
-      background: #ff9800;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-    "
-  >
-    Abrir com a Câmera
-  </button>
-</model-viewer>
+<!DOCTYPE html>
+<html lang="pt-br">
+  <head>
+    <meta charset="utf-8" />
+    <title>Visualizador 3D AR</title>
+    <script
+      type="module"
+      src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"
+    ></script>
+    <style>
+      body {
+        margin: 0;
+        background: #111;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        font-family: sans-serif;
+        color: white;
+      }
+      #inicio {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+      }
+      #inicio img {
+        width: 200px;
+      }
+      #inicio button {
+        padding: 12px 24px;
+        font-size: 18px;
+        background: #ff9800;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      model-viewer {
+        width: 100%;
+        height: 100%;
+        display: none; /* só mostra quando abrir AR */
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Tela inicial -->
+    <div id="inicio">
+      <img src="logo.png" alt="Minha Logo" />
+      <button id="startBtn">Inicie</button>
+    </div>
+
+    <!-- Viewer AR -->
+    <model-viewer
+      id="viewer"
+      src="elefante.glb"
+      ar
+      ar-modes="webxr scene-viewer quick-look"
+      camera-controls
+      auto-rotate
+      background-color="#111"
+    ></model-viewer>
+
+    <script>
+      const startBtn = document.getElementById("startBtn");
+      const inicio = document.getElementById("inicio");
+      const viewer = document.getElementById("viewer");
+
+      startBtn.addEventListener("click", async () => {
+        inicio.style.display = "none"; // esconde logo + botão
+        viewer.style.display = "block"; // exibe o viewer
+        try {
+          // força abrir AR direto
+          await viewer.activateAR();
+        } catch (err) {
+          console.error("Erro ao iniciar AR:", err);
+        }
+      });
+    </script>
+  </body>
+</html>
