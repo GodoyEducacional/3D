@@ -1,35 +1,29 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-  <head>
-    <meta charset="utf-8" />
-    <title>Visualizador 3D</title>
-    <script
-      type="module"
-      src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"
-    ></script>
-    <style>
-      body {
-        margin: 0;
-        background: #111;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
-      }
-      model-viewer {
-        width: 100%;
-        height: 100%;
-      }
-    </style>
-  </head>
-  <body>
-    <model-viewer
-      src="elefante.glb"
-      auto-rotate
-      camera-controls
-      background-color="#111"
-      ar
-      ar-modes="webxr scene-viewer quick-look"
-    ></model-viewer>
-  </body>
-</html>
+<model-viewer
+  src="elefante.glb"
+  auto-rotate
+  camera-controls
+  background-color="#111"
+  ar
+  ar-modes="webxr scene-viewer quick-look"
+  ar-scale="auto"
+  ar-placement="floor"
+>
+  <button
+    slot="ar-button"
+    style="
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 12px 24px;
+      font-size: 16px;
+      background: #ff9800;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    "
+  >
+    Abrir com a Câmera
+  </button>
+</model-viewer>
