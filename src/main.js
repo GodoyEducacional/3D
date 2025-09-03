@@ -1,16 +1,24 @@
+import * as THREE from "three";
+import { ARButton } from "three/examples/jsm/webxr/ARButton.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
-import * as THREE from 'three';
-import { ARButton } from 'three/examples/jsm/webxr/ARButton.js';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-
-// Cria tela inicial
-const startScreen = document.createElement('div');
-startScreen.id = 'startScreen';
-startScreen.innerHTML = `
-  <h1>Meu AR</h1>
-  <button id="startBtn">Inicie</button>
-`;
-document.body.appendChild(startScreen);
+// Cria botão único centralizado para iniciar AR
+const startBtn = document.createElement("button");
+startBtn.id = "startBtn";
+startBtn.textContent = "Start AR";
+startBtn.style.position = "fixed";
+startBtn.style.top = "50%";
+startBtn.style.left = "50%";
+startBtn.style.transform = "translate(-50%, -50%)";
+startBtn.style.padding = "20px 40px";
+startBtn.style.fontSize = "24px";
+startBtn.style.background = "#007bff";
+startBtn.style.color = "white";
+startBtn.style.border = "none";
+startBtn.style.borderRadius = "8px";
+startBtn.style.cursor = "pointer";
+startBtn.style.zIndex = "1000";
+document.body.appendChild(startBtn);
 
 let camera, scene, renderer;
 let controller;
@@ -18,10 +26,8 @@ let reticle, model;
 let hitTestSource = null;
 let hitTestSourceRequested = false;
 
-const startBtn = document.getElementById("startBtn");
-
 startBtn.addEventListener("click", () => {
-  startScreen.style.display = "none";
+  startBtn.style.display = "none";
   init();
   animate();
 });
@@ -50,9 +56,7 @@ function init() {
   scene.add(light);
 
   // Reticle
-  const geometry = new THREE.RingGeometry(0.07, 0.1, 32).rotateX(
-    -Math.PI / 2
-  );
+  const geometry = new THREE.RingGeometry(0.07, 0.1, 32).rotateX(-Math.PI / 2);
   const material = new THREE.MeshBasicMaterial({ color: 0xff9800 });
   reticle = new THREE.Mesh(geometry, material);
   reticle.matrixAutoUpdate = false;
@@ -95,11 +99,9 @@ function render(timestamp, frame) {
 
     if (!hitTestSourceRequested) {
       session.requestReferenceSpace("viewer").then((refSpace) => {
-        session
-          .requestHitTestSource({ space: refSpace })
-          .then((source) => {
-            hitTestSource = source;
-          });
+        session.requestHitTestSource({ space: refSpace }).then((source) => {
+          hitTestSource = source;
+        });
       });
       session.addEventListener("end", () => {
         hitTestSourceRequested = false;
