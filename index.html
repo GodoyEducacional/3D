@@ -51,7 +51,6 @@
 
     <script type="module">
       import * as THREE from "https://unpkg.com/three@0.154.0/build/three.module.js";
-      import { ARButton } from "https://unpkg.com/three@0.154.0/examples/jsm/webxr/ARButton.js";
       import { GLTFLoader } from "https://unpkg.com/three@0.154.0/examples/jsm/loaders/GLTFLoader.js";
 
       let camera, scene, renderer;
@@ -63,15 +62,29 @@
       const startBtn = document.getElementById("startBtn");
       const inicio = document.getElementById("inicio");
 
-      startBtn.addEventListener("click", () => {
-        inicio.style.display = "none";
+      startBtn.addEventListener("click", async () => {
+        inicio.style.display = "none"; // esconde logo
         init();
         animate();
+
+        // Inicia AR corretamente
+        if (navigator.xr) {
+          try {
+            const session = await navigator.xr.requestSession("immersive-ar", {
+              requiredFeatures: ["hit-test", "dom-overlay"],
+              domOverlay: { root: document.body },
+            });
+            renderer.xr.setSession(session);
+          } catch (err) {
+            console.error("AR não suportado ou usuário negou:", err);
+          }
+        } else {
+          alert("WebXR não suportado nesse dispositivo.");
+        }
       });
 
       function init() {
         scene = new THREE.Scene();
-
         camera = new THREE.PerspectiveCamera(
           70,
           window.innerWidth / window.innerHeight,
@@ -84,12 +97,6 @@
         renderer.xr.enabled = true;
         document.body.appendChild(renderer.domElement);
 
-        // AR Button
-        document.body.appendChild(
-          ARButton.createButton(renderer, { requiredFeatures: ["hit-test"] })
-        );
-
-        // Luz
         const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
         light.position.set(0.5, 1, 0.25);
         scene.add(light);
@@ -118,20 +125,18 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
       }
 
-      // Função para posicionar ou reposicionar o modelo
+      // Posicionar ou reposicionar modelo
       function onSelect() {
         if (reticle.visible) {
           if (!model) {
-            // Carrega o modelo uma vez
             const loader = new GLTFLoader();
             loader.load("elefante.glb", function (gltf) {
               model = gltf.scene;
-              model.scale.set(0.5, 0.5, 0.5); // ajuste de escala
+              model.scale.set(0.5, 0.5, 0.5);
               model.position.setFromMatrixPosition(reticle.matrix);
               scene.add(model);
             });
           } else {
-            // Se já existe, reposiciona para onde tocou
             model.position.setFromMatrixPosition(reticle.matrix);
           }
         }
