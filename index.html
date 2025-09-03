@@ -2,7 +2,7 @@
 <html lang="pt-br">
   <head>
     <meta charset="utf-8" />
-    <title>AR Interativo Completo</title>
+    <title>AR com Botão Inicial</title>
     <style>
       body {
         margin: 0;
@@ -13,21 +13,34 @@
       canvas {
         display: block;
       }
-      #instructions {
+      #startScreen {
         position: absolute;
-        top: 20px;
+        top: 0;
+        left: 0;
         width: 100%;
-        text-align: center;
-        color: #ff9800;
-        font-size: 18px;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        background: #111;
+        color: white;
         z-index: 10;
-        pointer-events: none;
+      }
+      #startScreen button {
+        padding: 20px 40px;
+        font-size: 24px;
+        background: #ff9800;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
       }
     </style>
   </head>
   <body>
-    <div id="instructions">
-      Toque no chão para posicionar o modelo. Segure para arrastar.
+    <div id="startScreen">
+      <h1>Meu AR</h1>
+      <button id="startBtn">Inicie</button>
     </div>
 
     <script type="module">
@@ -40,14 +53,18 @@
       let reticle, model;
       let hitTestSource = null;
       let hitTestSourceRequested = false;
-      let isDragging = false;
 
-      init();
-      animate();
+      const startBtn = document.getElementById("startBtn");
+      const startScreen = document.getElementById("startScreen");
+
+      startBtn.addEventListener("click", () => {
+        startScreen.style.display = "none";
+        init();
+        animate();
+      });
 
       function init() {
         scene = new THREE.Scene();
-
         camera = new THREE.PerspectiveCamera(
           70,
           window.innerWidth / window.innerHeight,
@@ -60,12 +77,11 @@
         renderer.xr.enabled = true;
         document.body.appendChild(renderer.domElement);
 
-        // ARButton
+        // ARButton disparado após tocar
         document.body.appendChild(
           ARButton.createButton(renderer, { requiredFeatures: ["hit-test"] })
         );
 
-        // Luz
         const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
         light.position.set(0.5, 1, 0.25);
         scene.add(light);
@@ -82,12 +98,6 @@
 
         // Controller
         controller = renderer.xr.getController(0);
-        controller.addEventListener("selectstart", () => {
-          isDragging = true;
-        });
-        controller.addEventListener("selectend", () => {
-          isDragging = false;
-        });
         controller.addEventListener("select", onSelect);
         scene.add(controller);
 
@@ -100,20 +110,15 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
       }
 
-      // Coloca ou reposiciona o modelo
       function onSelect() {
-        if (reticle.visible) {
-          if (!model) {
-            const loader = new GLTFLoader();
-            loader.load("elefante.glb", (gltf) => {
-              model = gltf.scene;
-              model.scale.set(0.5, 0.5, 0.5);
-              model.position.setFromMatrixPosition(reticle.matrix);
-              scene.add(model);
-            });
-          } else {
+        if (reticle.visible && !model) {
+          const loader = new GLTFLoader();
+          loader.load("elefante.glb", (gltf) => {
+            model = gltf.scene;
+            model.scale.set(0.5, 0.5, 0.5);
             model.position.setFromMatrixPosition(reticle.matrix);
-          }
+            scene.add(model);
+          });
         }
       }
 
@@ -126,17 +131,17 @@
           const session = renderer.xr.getSession();
 
           if (!hitTestSourceRequested) {
-            session.requestReferenceSpace("viewer").then((space) => {
-              session.requestHitTestSource({ space }).then((source) => {
-                hitTestSource = source;
-              });
+            session.requestReferenceSpace("viewer").then((refSpace) => {
+              session
+                .requestHitTestSource({ space: refSpace })
+                .then((source) => {
+                  hitTestSource = source;
+                });
             });
-
             session.addEventListener("end", () => {
               hitTestSourceRequested = false;
               hitTestSource = null;
             });
-
             hitTestSourceRequested = true;
           }
 
@@ -147,11 +152,6 @@
               const pose = hit.getPose(renderer.xr.getReferenceSpace());
               reticle.visible = true;
               reticle.matrix.fromArray(pose.transform.matrix);
-
-              // Arrastar modelo
-              if (model && isDragging) {
-                model.position.setFromMatrixPosition(reticle.matrix);
-              }
             } else {
               reticle.visible = false;
             }
