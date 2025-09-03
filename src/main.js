@@ -81,8 +81,8 @@ function onSelect() {
   if (reticle.visible && !model) {
     const loader = new GLTFLoader();
     loader.load("/elefante.glb", (gltf) => {
-      model = gltf.scene;
-      model.scale.set(0.5, 0.5, 0.5);
+  model = gltf.scene;
+  model.scale.set(0.1, 0.1, 0.1); // escala menor
       model.position.setFromMatrixPosition(reticle.matrix);
       scene.add(model);
       enableGestures(model);
