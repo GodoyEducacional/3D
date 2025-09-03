@@ -85,8 +85,66 @@ function onSelect() {
       model.scale.set(0.5, 0.5, 0.5);
       model.position.setFromMatrixPosition(reticle.matrix);
       scene.add(model);
+      enableGestures(model);
     });
   }
+// Adiciona controles de toque para arrastar, rotacionar e escalar
+function enableGestures(obj) {
+  let isDragging = false;
+  let lastX = 0, lastY = 0;
+  let lastDist = 0;
+  let lastRotation = 0;
+
+  renderer.domElement.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) {
+      isDragging = true;
+      lastX = e.touches[0].clientX;
+      lastY = e.touches[0].clientY;
+    } else if (e.touches.length === 2) {
+      lastDist = getDistance(e.touches[0], e.touches[1]);
+      lastRotation = getAngle(e.touches[0], e.touches[1]);
+    }
+  });
+
+  renderer.domElement.addEventListener('touchmove', (e) => {
+    if (isDragging && e.touches.length === 1) {
+      const dx = e.touches[0].clientX - lastX;
+      const dy = e.touches[0].clientY - lastY;
+      lastX = e.touches[0].clientX;
+      lastY = e.touches[0].clientY;
+      // Move o modelo no plano X/Z
+      obj.position.x += dx * 0.01;
+      obj.position.z -= dy * 0.01;
+    } else if (e.touches.length === 2) {
+      // Escala
+      const newDist = getDistance(e.touches[0], e.touches[1]);
+      const scaleChange = newDist / lastDist;
+      obj.scale.multiplyScalar(scaleChange);
+      lastDist = newDist;
+      // Rotação
+      const newRotation = getAngle(e.touches[0], e.touches[1]);
+      const rotChange = newRotation - lastRotation;
+      obj.rotation.y += rotChange * Math.PI / 180;
+      lastRotation = newRotation;
+    }
+  });
+
+  renderer.domElement.addEventListener('touchend', (e) => {
+    isDragging = false;
+  });
+}
+
+function getDistance(t1, t2) {
+  const dx = t2.clientX - t1.clientX;
+  const dy = t2.clientY - t1.clientY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function getAngle(t1, t2) {
+  const dx = t2.clientX - t1.clientX;
+  const dy = t2.clientY - t1.clientY;
+  return Math.atan2(dy, dx) * 180 / Math.PI;
+}
 }
 
 function animate() {
