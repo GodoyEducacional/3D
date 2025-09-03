@@ -58,7 +58,7 @@
       ar-modes="webxr scene-viewer quick-look"
       ar-placement="floor"
       ar-scale="auto"
-      interaction-prompt="when-needed"
+      interaction-prompt="always"
       background-color="#111"
     ></model-viewer>
 
@@ -71,7 +71,7 @@
         inicio.style.display = "none"; // esconde logo + botão
         viewer.style.display = "block"; // exibe o viewer
         try {
-          // força abrir AR direto
+          // abre AR e espera o clique do usuário
           await viewer.activateAR();
         } catch (err) {
           console.error("Erro ao iniciar AR:", err);
