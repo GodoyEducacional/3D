@@ -25,10 +25,11 @@ let controller;
 let model = null;
 let modelLoading = false;
 
-// --- VARIÁVEIS PARA ROTAÇÃO ---
+// --- VARIÁVEIS PARA A NOVA LÓGICA DE ROTAÇÃO ---
 let isDragging = false;
-let previousTouchX = 0;
-const ROTATION_SENSITIVITY = 0.01;
+// Usaremos um THREE.Vector3 para uma medição mais precisa da posição do controle
+let previousControllerPosition = new THREE.Vector3();
+const ROTATION_SENSITIVITY = 2; // Ajuste a sensibilidade conforme necessário
 
 const MODEL_DISTANCE = 1.5;
 const MODEL_SCALE = 0.02;
@@ -42,7 +43,6 @@ startBtn.addEventListener("click", () => {
 
 function init() {
   scene = new THREE.Scene();
-
   camera = new THREE.PerspectiveCamera(
     70,
     window.innerWidth / window.innerHeight,
@@ -65,27 +65,25 @@ function init() {
   scene.add(light);
 
   controller = renderer.xr.getController(0);
-  controller.addEventListener("select", onSelect);
-  // --- NOVA ABORDAGEM DE EVENTOS (MAIS ROBUSTA) ---
-  controller.addEventListener("selectstart", onSelectStart);
-  controller.addEventListener("selectend", onSelectEnd);
   scene.add(controller);
 
-  window.addEventListener("resize", onWindowResize);
+  // --- OUVINTES DE EVENTO DO CONTROLE AR ---
+  controller.addEventListener("select", onSelect); // Para posicionar o modelo
+  controller.addEventListener("selectstart", onSelectStart);
+  controller.addEventListener("selectend", onSelectEnd);
 
-  // Mantemos os listeners de toque do navegador para obter as coordenadas do dedo
-  renderer.domElement.addEventListener("touchstart", onTouchStart, false);
-  renderer.domElement.addEventListener("touchmove", onTouchMove, false);
-  renderer.domElement.addEventListener("touchend", onTouchEnd, false); // Fallback
+  window.addEventListener("resize", onWindowResize);
 }
 
-// ----- Coloca o modelo à frente da câmera -----
+// ----- Funções de Interação -----
+
 function onSelect() {
+  // Chamado com um toque rápido
   if (!model && !modelLoading) {
     modelLoading = true;
     const loader = new GLTFLoader();
     loader.load(
-      "/elefante.glb", // Certifique-se que este caminho está correto no seu projeto
+      "/elefante.glb",
       (gltf) => {
         model = gltf.scene;
         model.scale.set(MODEL_SCALE, MODEL_SCALE, MODEL_SCALE);
@@ -104,7 +102,20 @@ function onSelect() {
   }
 }
 
-// ----- Atualiza posição fixa à frente da câmera -----
+function onSelectStart() {
+  if (model) {
+    isDragging = true;
+    // Salva a posição inicial do controle (dedo) quando o toque começa
+    previousControllerPosition.copy(controller.position);
+  }
+}
+
+function onSelectEnd() {
+  isDragging = false;
+}
+
+// ----- Posição e Redimensionamento -----
+
 function updateModelPosition() {
   if (!model) return;
   const direction = new THREE.Vector3();
@@ -114,57 +125,31 @@ function updateModelPosition() {
   model.position.copy(position);
 }
 
-// ----- Loop e Redimensionamento -----
 function onWindowResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
+// ----- Loop Principal -----
+
 function animate() {
   renderer.setAnimationLoop(render);
 }
 
+// *** A MÁGICA ACONTECE AQUI ***
 function render() {
+  // Se o usuário está arrastando o dedo...
+  if (isDragging && model) {
+    // Calcula o deslocamento do controle desde o último quadro
+    const deltaX = controller.position.x - previousControllerPosition.x;
+
+    // Aplica a rotação baseada nesse deslocamento
+    model.rotation.y += deltaX * ROTATION_SENSITIVITY;
+
+    // Atualiza a posição "anterior" para ser a posição "atual" no próximo quadro
+    previousControllerPosition.copy(controller.position);
+  }
+
   renderer.render(scene, camera);
-}
-
-// --- FUNÇÕES DE INTERAÇÃO (LÓGICA HÍBRIDA) ---
-
-function onSelectStart() {
-  // Evento do Controlador XR: Inicia o modo de arrastar de forma confiável
-  if (model) {
-    isDragging = true;
-  }
-}
-
-function onSelectEnd() {
-  // Evento do Controlador XR: Termina o modo de arrastar
-  isDragging = false;
-}
-
-function onTouchStart(event) {
-  // Evento do Navegador: Apenas para capturar a posição inicial do dedo
-  event.preventDefault();
-  if (model && event.touches.length === 1) {
-    previousTouchX = event.touches[0].clientX;
-  }
-}
-
-function onTouchMove(event) {
-  // Evento do Navegador: Calcula a rotação se o modo de arrastar estiver ativo
-  event.preventDefault();
-  if (!isDragging || !model) return;
-
-  const currentTouchX = event.touches[0].clientX;
-  const deltaX = currentTouchX - previousTouchX;
-  model.rotation.y += deltaX * ROTATION_SENSITIVITY;
-
-  // Atualiza a posição para o próximo quadro
-  previousTouchX = currentTouchX;
-}
-
-function onTouchEnd() {
-  // Evento do Navegador: Um fallback para garantir que o arrastar termine
-  isDragging = false;
 }
