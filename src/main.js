@@ -25,6 +25,11 @@ let controller;
 let model = null;
 let modelLoading = false;
 
+// --- NOVAS VARIÁVEIS PARA ROTAÇÃO ---
+let isDragging = false;
+let previousTouchX = 0;
+const ROTATION_SENSITIVITY = 0.01; // Ajuste para deixar a rotação mais rápida ou lenta
+
 const MODEL_DISTANCE = 1.5; // metros à frente da câmera
 const MODEL_SCALE = 0.02;
 
@@ -64,6 +69,11 @@ function init() {
   scene.add(controller);
 
   window.addEventListener("resize", onWindowResize);
+
+  // --- REGISTRAR EVENTOS DE TOQUE ---
+  renderer.domElement.addEventListener("touchstart", onTouchStart, false);
+  renderer.domElement.addEventListener("touchmove", onTouchMove, false);
+  renderer.domElement.addEventListener("touchend", onTouchEnd, false);
 }
 
 // ----- Coloca o modelo à frente da câmera -----
@@ -115,4 +125,39 @@ function animate() {
 
 function render() {
   renderer.render(scene, camera);
+}
+
+// --- NOVAS FUNÇÕES PARA GESTOS DE ROTAÇÃO ---
+
+function onTouchStart(event) {
+  // Só começa a arrastar se o modelo já existir e for apenas um dedo
+  if (model && event.touches.length === 1) {
+    isDragging = true;
+    // Guarda a posição inicial do toque no eixo X
+    previousTouchX = event.touches[0].clientX;
+  }
+}
+
+function onTouchMove(event) {
+  // Se não estiver arrastando ou não houver modelo, não faz nada
+  if (!isDragging || !model) return;
+
+  // Previne o comportamento padrão do navegador (como rolar a página)
+  event.preventDefault();
+
+  // Pega a posição X atual do toque
+  const currentTouchX = event.touches[0].clientX;
+  // Calcula a diferença de movimento desde o último quadro
+  const deltaX = currentTouchX - previousTouchX;
+
+  // Aplica a rotação no eixo Y (vertical) do modelo
+  model.rotation.y += deltaX * ROTATION_SENSITIVITY;
+
+  // Atualiza a posição anterior para o próximo movimento
+  previousTouchX = currentTouchX;
+}
+
+function onTouchEnd(event) {
+  // Para de arrastar quando o dedo é removido da tela
+  isDragging = false;
 }
