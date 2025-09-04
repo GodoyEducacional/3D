@@ -20,9 +20,12 @@ startBtn.style.zIndex = "1000";
 document.body.appendChild(startBtn);
 
 let camera, scene, renderer;
-let controller;
 let model = null;
 let modelLoading = false;
+
+let hitTestSource = null;
+let localSpace = null;
+let xrSession = null;
 
 startBtn.addEventListener("click", () => {
   startBtn.style.display = "none";
@@ -46,7 +49,7 @@ function init() {
   renderer.xr.enabled = true;
   document.body.appendChild(renderer.domElement);
 
-  // Botão padrão AR do Three.js
+  // Botão AR padrão
   document.body.appendChild(
     ARButton.createButton(renderer, { requiredFeatures: ["hit-test"] })
   );
@@ -56,48 +59,65 @@ function init() {
   light.position.set(0.5, 1, 0.25);
   scene.add(light);
 
-  // Controller para detectar toques/seleção
-  controller = renderer.xr.getController(0);
-  controller.addEventListener("select", placeModel);
-  scene.add(controller);
-
   window.addEventListener("resize", onWindowResize);
+
+  // Evento de sessão AR
+  renderer.xr.addEventListener("sessionstart", async () => {
+    xrSession = renderer.xr.getSession();
+
+    // Hit test
+    const viewerSpace = await xrSession.requestReferenceSpace("viewer");
+    hitTestSource = await xrSession.requestHitTestSource({
+      space: viewerSpace,
+    });
+    localSpace = await xrSession.requestReferenceSpace("local");
+  });
+
+  renderer.xr.addEventListener("sessionend", () => {
+    hitTestSource = null;
+    localSpace = null;
+    xrSession = null;
+  });
 }
 
-// Coloca o modelo na posição do raycast
-function placeModel() {
-  const modeloEscala = 0.02;
+// Função para colocar ou mover o modelo na superfície detectada
+function placeModelFromHitTest(frame) {
+  if (!hitTestSource || !frame) return;
 
-  // Raycast central
-  const x = 0;
-  const y = 0;
-  const raycaster = new THREE.Raycaster();
-  raycaster.setFromCamera({ x, y }, camera);
+  const hitTestResults = frame.getHitTestResults(hitTestSource);
+  if (hitTestResults.length > 0) {
+    const hit = hitTestResults[0];
+    const pose = hit.getPose(localSpace);
 
-  const planeY = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-  const intersect = new THREE.Vector3();
-  raycaster.ray.intersectPlane(planeY, intersect);
-
-  if (!model && !modelLoading) {
-    modelLoading = true;
-    const loader = new GLTFLoader();
-    loader.load(
-      "/elefante.glb",
-      (gltf) => {
-        model = gltf.scene;
-        model.scale.set(modeloEscala, modeloEscala, modeloEscala);
-        model.position.copy(intersect);
-        scene.add(model);
-        modelLoading = false;
-      },
-      undefined,
-      (err) => {
-        console.error("Erro ao carregar modelo:", err);
-        modelLoading = false;
-      }
-    );
-  } else if (model) {
-    model.position.copy(intersect);
+    if (!model && !modelLoading) {
+      modelLoading = true;
+      const loader = new GLTFLoader();
+      loader.load(
+        "/elefante.glb",
+        (gltf) => {
+          model = gltf.scene;
+          model.scale.set(0.02, 0.02, 0.02); // Escala fixa
+          model.position.set(
+            pose.transform.position.x,
+            pose.transform.position.y,
+            pose.transform.position.z
+          );
+          scene.add(model);
+          modelLoading = false;
+        },
+        undefined,
+        (err) => {
+          console.error("Erro ao carregar modelo:", err);
+          modelLoading = false;
+        }
+      );
+    } else if (model) {
+      model.position.set(
+        pose.transform.position.x,
+        pose.transform.position.y,
+        pose.transform.position.z
+      );
+    }
   }
 }
 
@@ -111,6 +131,9 @@ function animate() {
   renderer.setAnimationLoop(render);
 }
 
-function render() {
+function render(timestamp, frame) {
+  // Atualiza posição do modelo via hit-test
+  if (frame) placeModelFromHitTest(frame);
+
   renderer.render(scene, camera);
 }
