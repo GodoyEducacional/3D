@@ -26,6 +26,10 @@ let modelLoading = false;
 const MODEL_DISTANCE = 1.5; // distância fixa à frente da câmera (metros)
 const MODEL_SCALE = 0.02; // escala fixa
 
+// Variáveis para rotação com dois dedos
+let rotating = false;
+let lastRotationAngle = 0;
+
 startBtn.addEventListener("click", () => {
   startBtn.style.display = "none";
   init();
@@ -48,25 +52,51 @@ function init() {
   renderer.xr.enabled = true;
   document.body.appendChild(renderer.domElement);
 
-  // Botão AR padrão
   document.body.appendChild(
     ARButton.createButton(renderer, { requiredFeatures: ["hit-test"] })
   );
 
-  // Luz
   const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
   light.position.set(0.5, 1, 0.25);
   scene.add(light);
 
-  // Controller para colocar/mover modelo
   controller = renderer.xr.getController(0);
   controller.addEventListener("select", onSelect);
   scene.add(controller);
 
   window.addEventListener("resize", onWindowResize);
+
+  // Eventos para detectar gesto de rotação
+  renderer.domElement.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 2 && model) {
+      rotating = true;
+      lastRotationAngle = getAngle(e.touches[0], e.touches[1]);
+    }
+  });
+
+  renderer.domElement.addEventListener("touchmove", (e) => {
+    if (rotating && e.touches.length === 2 && model) {
+      const newAngle = getAngle(e.touches[0], e.touches[1]);
+      const delta = newAngle - lastRotationAngle;
+      model.rotation.y += (delta * Math.PI) / 180; // rotação em radianos
+      lastRotationAngle = newAngle;
+    }
+  });
+
+  renderer.domElement.addEventListener("touchend", (e) => {
+    if (e.touches.length < 2) {
+      rotating = false;
+    }
+  });
 }
 
-// Coloca ou move o modelo sempre à frente da câmera, mantendo tamanho fixo
+// Helper para calcular ângulo entre dois dedos
+function getAngle(t1, t2) {
+  const dx = t2.clientX - t1.clientX;
+  const dy = t2.clientY - t1.clientY;
+  return (Math.atan2(dy, dx) * 180) / Math.PI;
+}
+
 function onSelect() {
   if (!model && !modelLoading) {
     modelLoading = true;
@@ -91,7 +121,6 @@ function onSelect() {
   }
 }
 
-// Atualiza a posição do modelo sempre à frente da câmera
 function updateModelPosition() {
   const direction = new THREE.Vector3();
   camera.getWorldDirection(direction);
