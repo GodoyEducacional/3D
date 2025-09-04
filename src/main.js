@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { ARButton } from "three/examples/jsm/webxr/ARButton.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
-// Botão Start AR
+// Botão azul Start AR
 const startBtn = document.createElement("button");
 startBtn.textContent = "Start AR";
 startBtn.style.position = "fixed";
@@ -20,6 +20,7 @@ startBtn.style.zIndex = "1000";
 document.body.appendChild(startBtn);
 
 let camera, scene, renderer;
+let controller;
 let model = null;
 let modelLoading = false;
 
@@ -45,7 +46,7 @@ function init() {
   renderer.xr.enabled = true;
   document.body.appendChild(renderer.domElement);
 
-  // Botão AR padrão
+  // Botão padrão AR do Three.js
   document.body.appendChild(
     ARButton.createButton(renderer, { requiredFeatures: ["hit-test"] })
   );
@@ -55,32 +56,27 @@ function init() {
   light.position.set(0.5, 1, 0.25);
   scene.add(light);
 
-  // Posicionar modelo ao tocar na tela
-  renderer.domElement.addEventListener("touchstart", placeModel);
+  // Controller para detectar toques/seleção
+  controller = renderer.xr.getController(0);
+  controller.addEventListener("select", placeModel);
+  scene.add(controller);
+
   window.addEventListener("resize", onWindowResize);
 }
 
-function placeModel(event) {
-  // Ponto de toque
-  let touchX = window.innerWidth / 2;
-  let touchY = window.innerHeight / 2;
-  if (event.touches && event.touches[0]) {
-    touchX = event.touches[0].clientX;
-    touchY = event.touches[0].clientY;
-  }
+// Coloca o modelo na posição do raycast
+function placeModel() {
+  const modeloEscala = 0.02;
 
-  // Coordenadas normalizadas
-  const x = (touchX / window.innerWidth) * 2 - 1;
-  const y = -(touchY / window.innerHeight) * 2 + 1;
-
-  // Raycast para chão Y=0
+  // Raycast central
+  const x = 0;
+  const y = 0;
   const raycaster = new THREE.Raycaster();
   raycaster.setFromCamera({ x, y }, camera);
+
   const planeY = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   const intersect = new THREE.Vector3();
   raycaster.ray.intersectPlane(planeY, intersect);
-
-  const modeloEscala = 0.02; // Tamanho exato do modelo
 
   if (!model && !modelLoading) {
     modelLoading = true;
@@ -101,7 +97,7 @@ function placeModel(event) {
       }
     );
   } else if (model) {
-    model.position.copy(intersect); // Move modelo existente
+    model.position.copy(intersect);
   }
 }
 
