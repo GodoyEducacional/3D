@@ -1,5 +1,6 @@
 // Variável global para controlar gesto de rotação
 window.isRotating = false;
+
 import * as THREE from "three";
 import { ARButton } from "three/examples/jsm/webxr/ARButton.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -24,9 +25,7 @@ document.body.appendChild(startBtn);
 
 let camera, scene, renderer;
 let controller;
-let reticle, model;
-let hitTestSource = null;
-let hitTestSourceRequested = false;
+let model;
 
 startBtn.addEventListener("click", () => {
   startBtn.style.display = "none";
@@ -57,15 +56,19 @@ function init() {
   light.position.set(0.5, 1, 0.25);
   scene.add(light);
 
-  // Não cria retículo visual
-  reticle = null;
-
   // Controller
   controller = renderer.xr.getController(0);
   controller.addEventListener("select", onSelect);
   scene.add(controller);
 
   window.addEventListener("resize", onWindowResize);
+
+  // Captura último toque para raycast
+  renderer.domElement.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 1) {
+      renderer.domElement.lastTouch = e.touches[0];
+    }
+  });
 }
 
 function onWindowResize() {
@@ -75,25 +78,33 @@ function onWindowResize() {
 }
 
 function onSelect() {
-  // Adiciona ou reposiciona o modelo no ponto de toque, adaptado para o plano do chão
+  // Não reposiciona se estiver girando ou escalando
+  if (window.isRotating) return;
+
+  // Usa toque central por padrão
   let touchX = window.innerWidth / 2;
   let touchY = window.innerHeight / 2;
   if (renderer.xr.isPresenting && renderer.domElement.lastTouch) {
     touchX = renderer.domElement.lastTouch.clientX;
     touchY = renderer.domElement.lastTouch.clientY;
   }
+
   // Converte para coordenadas normalizadas
   const x = (touchX / window.innerWidth) * 2 - 1;
   const y = -(touchY / window.innerHeight) * 2 + 1;
+
   // Raycast do ponto de toque
   const raycaster = new THREE.Raycaster();
   raycaster.setFromCamera({ x, y }, camera);
+
   // Interseção com plano Y=0 (chão)
   const planeY = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   const intersect = new THREE.Vector3();
   raycaster.ray.intersectPlane(planeY, intersect);
-  // Adapta a escala para garantir que o modelo não fique gigante
+
+  // Escala inicial
   const modeloEscala = 0.02;
+
   if (!model) {
     const loader = new GLTFLoader();
     loader.load("/elefante.glb", (gltf) => {
@@ -101,59 +112,72 @@ function onSelect() {
       model.scale.set(modeloEscala, modeloEscala, modeloEscala);
       model.position.copy(intersect);
       scene.add(model);
-      enableRotation(model);
+
+      // Ativa rotação + escala por gesto
+      enableScaleAndRotation(model);
     });
   } else {
     model.scale.set(modeloEscala, modeloEscala, modeloEscala);
     model.position.copy(intersect);
   }
-// Permite rotacionar o modelo com dois dedos
-function enableRotation(obj) {
+}
+
+// Permite rotacionar e escalar o modelo com dois dedos
+function enableScaleAndRotation(obj) {
   let lastRotation = 0;
+  let lastDistance = 0;
   let rotating = false;
-  renderer.domElement.addEventListener('touchstart', (e) => {
+
+  renderer.domElement.addEventListener("touchstart", (e) => {
     if (e.touches.length === 2) {
       lastRotation = getAngle(e.touches[0], e.touches[1]);
+      lastDistance = getDistance(e.touches[0], e.touches[1]);
       rotating = true;
       window.isRotating = true;
     }
   });
-  renderer.domElement.addEventListener('touchmove', (e) => {
+
+  renderer.domElement.addEventListener("touchmove", (e) => {
     if (rotating && e.touches.length === 2) {
+      // Rotação
       const newRotation = getAngle(e.touches[0], e.touches[1]);
       const rotChange = newRotation - lastRotation;
-      obj.rotation.y += rotChange * Math.PI / 180;
+      obj.rotation.y += (rotChange * Math.PI) / 180;
       lastRotation = newRotation;
+
+      // Escala (pinça)
+      const newDistance = getDistance(e.touches[0], e.touches[1]);
+      const scaleChange = newDistance / lastDistance;
+      obj.scale.multiplyScalar(scaleChange);
+      lastDistance = newDistance;
     }
   });
-  renderer.domElement.addEventListener('touchend', (e) => {
+
+  renderer.domElement.addEventListener("touchend", (e) => {
     if (e.touches.length < 2) {
       rotating = false;
       window.isRotating = false;
     }
   });
-  // Só reposiciona se não estiver em gesto de rotação (dois dedos)
-  if (window.isRotating) return;
 }
 
+// Helpers para gestos
 function getAngle(t1, t2) {
   const dx = t2.clientX - t1.clientX;
   const dy = t2.clientY - t1.clientY;
-  return Math.atan2(dy, dx) * 180 / Math.PI;
+  return (Math.atan2(dy, dx) * 180) / Math.PI;
 }
-  // Captura último toque para raycast
-  renderer.domElement.addEventListener("touchstart", (e) => {
-    if (e.touches.length === 1) {
-      renderer.domElement.lastTouch = e.touches[0];
-    }
-  });
-  // Adiciona controles de toque para arrastar, rotacionar e escalar
+
+function getDistance(t1, t2) {
+  const dx = t2.clientX - t1.clientX;
+  const dy = t2.clientY - t1.clientY;
+  return Math.sqrt(dx * dx + dy * dy);
 }
 
 function animate() {
   renderer.setAnimationLoop(render);
 }
 
-function render(timestamp, frame) {
+function render() {
   renderer.render(scene, camera);
 }
