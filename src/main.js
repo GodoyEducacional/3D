@@ -25,7 +25,7 @@ let controller;
 let model = null;
 let modelLoading = false;
 
-const MODEL_DISTANCE = 1.5; // metros à frente da câmera
+const MODEL_DISTANCE = 1.5; // distância fixa à frente da câmera
 const MODEL_SCALE = 0.02; // tamanho fixo
 
 // Rotação com dois dedos
@@ -142,7 +142,7 @@ function onTouchMove(e) {
       e.touches[1].clientX - e.touches[0].clientX
     );
     const delta = newAngle - lastAngle;
-    model.rotation.y += delta; // eixo Y
+    model.rotation.y += delta; // rotaciona no eixo Y
     lastAngle = newAngle;
   }
 }
