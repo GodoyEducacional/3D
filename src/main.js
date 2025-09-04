@@ -25,17 +25,10 @@ let controller;
 let model = null;
 let modelLoading = false;
 
-// --- VARIÁVEIS PARA A NOVA LÓGICA DE ROTAÇÃO ---
-let isDragging = false;
-let previousTouchX = 0;
-let previousControllerPosition = new THREE.Vector3();
-const ROTATION_SENSITIVITY = 0.01; // Ajuste a sensibilidade conforme necessário
-let touchStartX = 0;
-
-const MODEL_DISTANCE = 1.5;
+const MODEL_DISTANCE = 1.5; // metros
 const MODEL_SCALE = 0.02;
 
-// ----- Inicialização -----
+// ----- Start AR -----
 startBtn.addEventListener("click", () => {
   startBtn.style.display = "none";
   init();
@@ -57,11 +50,6 @@ function init() {
   renderer.xr.enabled = true;
   document.body.appendChild(renderer.domElement);
 
-  // Adiciona eventos de toque na tela
-  renderer.domElement.addEventListener('touchstart', onTouchStart, false);
-  renderer.domElement.addEventListener('touchmove', onTouchMove, false);
-  renderer.domElement.addEventListener('touchend', onTouchEnd, false);
-
   document.body.appendChild(
     ARButton.createButton(renderer, { requiredFeatures: ["hit-test"] })
   );
@@ -71,20 +59,17 @@ function init() {
   scene.add(light);
 
   controller = renderer.xr.getController(0);
+  controller.addEventListener("select", onSelect);
   scene.add(controller);
 
-  // --- OUVINTES DE EVENTO DO CONTROLE AR ---
-  controller.addEventListener("select", onSelect); // Para posicionar o modelo
-  controller.addEventListener("selectstart", onSelectStart);
-  controller.addEventListener("selectend", onSelectEnd);
+  // Gestos para dois dedos (rotacionar)
+  setupTwoFingerRotation();
 
   window.addEventListener("resize", onWindowResize);
 }
 
-// ----- Funções de Interação -----
-
+// ----- Colocar modelo à frente da câmera -----
 function onSelect() {
-  // Chamado com um toque rápido
   if (!model && !modelLoading) {
     modelLoading = true;
     const loader = new GLTFLoader();
@@ -93,9 +78,9 @@ function onSelect() {
       (gltf) => {
         model = gltf.scene;
         model.scale.set(MODEL_SCALE, MODEL_SCALE, MODEL_SCALE);
+        updateModelPosition();
         scene.add(model);
         modelLoading = false;
-        updateModelPosition();
       },
       undefined,
       (err) => {
@@ -108,51 +93,44 @@ function onSelect() {
   }
 }
 
-function onSelectStart() {
-  if (model) {
-    isDragging = true;
-    // Salva a posição inicial do controle (dedo) quando o toque começa
-    previousControllerPosition.copy(controller.position);
-  }
-}
-
-function onSelectEnd() {
-  isDragging = false;
-}
-
-// ----- Eventos de Toque -----
-function onTouchStart(event) {
-  if (model) {
-    event.preventDefault();
-    isDragging = true;
-    touchStartX = event.touches[0].clientX;
-    previousTouchX = touchStartX;
-  }
-}
-
-function onTouchMove(event) {
-  if (isDragging && model) {
-    event.preventDefault();
-    const touchX = event.touches[0].clientX;
-    const deltaX = (touchX - previousTouchX) * ROTATION_SENSITIVITY;
-    model.rotation.y += deltaX;
-    previousTouchX = touchX;
-  }
-}
-
-function onTouchEnd(event) {
-  isDragging = false;
-}
-
-// ----- Posição e Redimensionamento -----
-
 function updateModelPosition() {
-  if (!model) return;
   const direction = new THREE.Vector3();
   camera.getWorldDirection(direction);
   const position = new THREE.Vector3();
   position.copy(camera.position).add(direction.multiplyScalar(MODEL_DISTANCE));
   model.position.copy(position);
+}
+
+// ----- Rotação dois dedos -----
+function setupTwoFingerRotation() {
+  let lastAngle = 0;
+  let rotating = false;
+
+  renderer.domElement.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 2 && model) {
+      const dx = e.touches[1].clientX - e.touches[0].clientX;
+      const dy = e.touches[1].clientY - e.touches[0].clientY;
+      lastAngle = Math.atan2(dy, dx);
+      rotating = true;
+    }
+  });
+
+  renderer.domElement.addEventListener("touchmove", (e) => {
+    if (rotating && e.touches.length === 2 && model) {
+      const dx = e.touches[1].clientX - e.touches[0].clientX;
+      const dy = e.touches[1].clientY - e.touches[0].clientY;
+      const angle = Math.atan2(dy, dx);
+      const delta = angle - lastAngle;
+      model.rotation.y += delta;
+      lastAngle = angle;
+    }
+  });
+
+  renderer.domElement.addEventListener("touchend", (e) => {
+    if (e.touches.length < 2) {
+      rotating = false;
+    }
+  });
 }
 
 function onWindowResize() {
@@ -161,24 +139,10 @@ function onWindowResize() {
   renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-// ----- Loop Principal -----
-
 function animate() {
   renderer.setAnimationLoop(render);
 }
 
 function render() {
-  if (model) {
-    // Mantém o modelo sempre de frente para a câmera no eixo Y
-    const cameraDirection = new THREE.Vector3();
-    camera.getWorldDirection(cameraDirection);
-    cameraDirection.y = 0; // Mantém apenas a rotação no eixo Y
-    
-    // A rotação do modelo é mantida independente, apenas atualizamos a posição
-    if (!isDragging) {
-      updateModelPosition();
-    }
-  }
-
   renderer.render(scene, camera);
 }
