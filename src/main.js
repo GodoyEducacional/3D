@@ -1,35 +1,6 @@
-import * as BABYLON from "babylonjs";
-import "babylonjs-loaders";
-import "babylonjs-gui"; // só se for usar UI
-
-// ----- Configuração inicial -----
-const canvas = document.createElement("canvas");
-canvas.style.width = "100%";
-canvas.style.height = "100%";
-canvas.style.touchAction = "none"; // necessário para gestos
-document.body.appendChild(canvas);
-
-const engine = new BABYLON.Engine(canvas, true);
-const scene = new BABYLON.Scene(engine);
-
-// ----- Luz e câmera -----
-const light = new BABYLON.HemisphericLight(
-  "hemi",
-  new BABYLON.Vector3(0, 1, 0),
-  scene
-);
-
-const camera = new BABYLON.UniversalCamera(
-  "cam",
-  new BABYLON.Vector3(0, 1.6, 0),
-  scene
-);
-camera.attachControl(canvas, true);
-
-// ----- Variáveis globais -----
-let model = null;
-const MODEL_SCALE = 0.02;
-const MODEL_DISTANCE = 1.5;
+import * as THREE from "three";
+import { ARButton } from "three/examples/jsm/webxr/ARButton.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 // ----- Botão Start AR -----
 const startBtn = document.createElement("button");
@@ -48,57 +19,130 @@ startBtn.style.cursor = "pointer";
 startBtn.style.zIndex = "1000";
 document.body.appendChild(startBtn);
 
+// ----- Variáveis -----
+let camera, scene, renderer;
+let controller;
+let model = null;
+let modelLoading = false;
+
+const MODEL_DISTANCE = 1.5; // metros
+const MODEL_SCALE = 0.02;
+
 // ----- Start AR -----
-startBtn.addEventListener("click", async () => {
+startBtn.addEventListener("click", () => {
   startBtn.style.display = "none";
+  init();
+  animate();
+});
 
-  // Inicializa WebXR
-  const xr = await scene.createDefaultXRExperienceAsync({
-    uiOptions: { sessionMode: "immersive-ar" },
-    optionalFeatures: true,
-  });
-
-  // Carrega modelo 3D
-  BABYLON.SceneLoader.ImportMesh(
-    "",
-    "/",
-    "elefante.glb",
-    scene,
-    function (meshes) {
-      model = meshes[0];
-      model.scaling.scaleInPlace(MODEL_SCALE);
-      updateModelPosition();
-    }
+function init() {
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(
+    70,
+    window.innerWidth / window.innerHeight,
+    0.01,
+    20
   );
 
-  // Habilita gestos de rotação (XRGestures)
-  if (xr.baseExperience) {
-    const xrGestures = BABYLON.XRGestures.XRGesturesHelper.CreateDefault(
-      xr.baseExperience,
-      scene
-    );
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.xr.enabled = true;
+  document.body.appendChild(renderer.domElement);
 
-    xrGestures.twoFingerRotation = true; // ativa rotação com dois dedos
-    xrGestures.onTwoFingerRotationObservable.add((rotationDelta) => {
-      if (model)
-        model.rotate(BABYLON.Axis.Y, rotationDelta, BABYLON.Space.WORLD);
-    });
-  }
-});
+  document.body.appendChild(
+    ARButton.createButton(renderer, { requiredFeatures: ["hit-test"] })
+  );
 
-// ----- Atualiza posição do modelo à frente da câmera -----
-function updateModelPosition() {
-  if (!model) return;
-  const forward = camera.getForwardRay(MODEL_DISTANCE);
-  model.position = forward.origin.add(forward.direction.scale(MODEL_DISTANCE));
+  const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+  light.position.set(0.5, 1, 0.25);
+  scene.add(light);
+
+  controller = renderer.xr.getController(0);
+  controller.addEventListener("select", onSelect);
+  scene.add(controller);
+
+  // Gestos para dois dedos (rotacionar)
+  setupTwoFingerRotation();
+
+  window.addEventListener("resize", onWindowResize);
 }
 
-// ----- Loop de render -----
-engine.runRenderLoop(() => {
-  scene.render();
-});
+// ----- Colocar modelo à frente da câmera -----
+function onSelect() {
+  if (!model && !modelLoading) {
+    modelLoading = true;
+    const loader = new GLTFLoader();
+    loader.load(
+      "/elefante.glb",
+      (gltf) => {
+        model = gltf.scene;
+        model.scale.set(MODEL_SCALE, MODEL_SCALE, MODEL_SCALE);
+        updateModelPosition();
+        scene.add(model);
+        modelLoading = false;
+      },
+      undefined,
+      (err) => {
+        console.error("Erro ao carregar modelo:", err);
+        modelLoading = false;
+      }
+    );
+  } else if (model) {
+    updateModelPosition();
+  }
+}
 
-// ----- Resize -----
-window.addEventListener("resize", () => {
-  engine.resize();
-});
+function updateModelPosition() {
+  const direction = new THREE.Vector3();
+  camera.getWorldDirection(direction);
+  const position = new THREE.Vector3();
+  position.copy(camera.position).add(direction.multiplyScalar(MODEL_DISTANCE));
+  model.position.copy(position);
+}
+
+// ----- Rotação dois dedos -----
+function setupTwoFingerRotation() {
+  let lastAngle = 0;
+  let rotating = false;
+
+  renderer.domElement.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 2 && model) {
+      const dx = e.touches[1].clientX - e.touches[0].clientX;
+      const dy = e.touches[1].clientY - e.touches[0].clientY;
+      lastAngle = Math.atan2(dy, dx);
+      rotating = true;
+    }
+  });
+
+  renderer.domElement.addEventListener("touchmove", (e) => {
+    if (rotating && e.touches.length === 2 && model) {
+      const dx = e.touches[1].clientX - e.touches[0].clientX;
+      const dy = e.touches[1].clientY - e.touches[0].clientY;
+      const angle = Math.atan2(dy, dx);
+      const delta = angle - lastAngle;
+      model.rotation.y += delta;
+      lastAngle = angle;
+    }
+  });
+
+  renderer.domElement.addEventListener("touchend", (e) => {
+    if (e.touches.length < 2) {
+      rotating = false;
+    }
+  });
+}
+
+function onWindowResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function animate() {
+  renderer.setAnimationLoop(render);
+}
+
+function render() {
+  renderer.render(scene, camera);
+}
