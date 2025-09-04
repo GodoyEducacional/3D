@@ -87,9 +87,6 @@ function init() {
   touchOverlay.addEventListener("touchstart", onTouchStart);
   touchOverlay.addEventListener("touchmove", onTouchMove);
   touchOverlay.addEventListener("touchend", onTouchEnd);
-
-  // Evento do overlay para reposicionar com 1 dedo
-  touchOverlay.addEventListener("click", onSingleTouchMove);
 }
 
 // ----- Coloca ou move o modelo -----
@@ -127,7 +124,7 @@ function updateModelPosition() {
   model.position.copy(position);
 }
 
-// ----- Eventos de toque para rotação -----
+// ----- Eventos de toque para rotação com 2 dedos -----
 function onTouchStart(e) {
   if (e.touches.length === 2 && model) {
     rotating = true;
@@ -145,31 +142,13 @@ function onTouchMove(e) {
       e.touches[1].clientX - e.touches[0].clientX
     );
     const delta = newAngle - lastAngle;
-    model.rotation.y += delta; // já em radianos
+    model.rotation.y += delta; // eixo Y
     lastAngle = newAngle;
   }
 }
 
 function onTouchEnd(e) {
   if (e.touches.length < 2) rotating = false;
-}
-
-// ----- Reposicionamento com 1 dedo (click) -----
-function onSingleTouchMove(e) {
-  if (!model) return;
-
-  // Raycast central (ou próximo do clique)
-  const x = 0;
-  const y = 0;
-  const raycaster = new THREE.Raycaster();
-  raycaster.setFromCamera({ x, y }, camera);
-
-  // Interseção com plano Y=0
-  const planeY = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-  const intersect = new THREE.Vector3();
-  raycaster.ray.intersectPlane(planeY, intersect);
-
-  model.position.copy(intersect);
 }
 
 // ----- Resize -----
