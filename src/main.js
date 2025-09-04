@@ -1,28 +1,30 @@
-import * as BABYLON from "babylonjs";
-import "babylonjs-loaders";
-import "babylonjs-gui";
+import {
+  Engine,
+  Scene,
+  Vector3,
+  HemisphericLight,
+  UniversalCamera,
+  Axis,
+  Space,
+  SceneLoader,
+} from "@babylonjs/core";
+import "@babylonjs/loaders";
+import { XRGesturesHelper } from "@babylonjs/inspector"; // para gestos dois dedos
 
-// ----- Configuração inicial -----
+// ----- Canvas -----
 const canvas = document.createElement("canvas");
 canvas.style.width = "100%";
 canvas.style.height = "100%";
 canvas.style.touchAction = "none"; // necessário para gestos
 document.body.appendChild(canvas);
 
-const engine = new BABYLON.Engine(canvas, true);
-const scene = new BABYLON.Scene(engine);
+// ----- Engine e cena -----
+const engine = new Engine(canvas, true);
+const scene = new Scene(engine);
 
 // ----- Luz e câmera -----
-const light = new BABYLON.HemisphericLight(
-  "hemi",
-  new BABYLON.Vector3(0, 1, 0),
-  scene
-);
-const camera = new BABYLON.UniversalCamera(
-  "cam",
-  new BABYLON.Vector3(0, 1.6, 0),
-  scene
-);
+const light = new HemisphericLight("hemi", new Vector3(0, 1, 0), scene);
+const camera = new UniversalCamera("cam", new Vector3(0, 1.6, 0), scene);
 camera.attachControl(canvas, true);
 
 // ----- Variáveis globais -----
@@ -40,12 +42,21 @@ startBtn.style.transform = "translate(-50%, -50%)";
 startBtn.style.padding = "20px 40px";
 startBtn.style.fontSize = "24px";
 startBtn.style.background = "#007bff";
-startBtn.style.color = "black";
+startBtn.style.color = "white";
 startBtn.style.border = "none";
 startBtn.style.borderRadius = "8px";
 startBtn.style.cursor = "pointer";
 startBtn.style.zIndex = "1000";
 document.body.appendChild(startBtn);
+
+// ----- Função de atualização da posição -----
+function updateModelPosition() {
+  if (!model) return;
+  const forward = camera.getForwardRay(MODEL_DISTANCE);
+  model.position = forward.origin
+    .add(forward.direction.scale(MODEL_DISTANCE))
+    .clone();
+}
 
 // ----- Start AR -----
 startBtn.addEventListener("click", async () => {
@@ -57,40 +68,37 @@ startBtn.addEventListener("click", async () => {
     optionalFeatures: true,
   });
 
-  // Carrega modelo 3D
-  BABYLON.SceneLoader.ImportMesh(
-    "",
-    "/",
-    "elefante.glb",
-    scene,
-    function (meshes) {
+  // Carrega modelo GLB
+  if (!model) {
+    SceneLoader.ImportMesh("", "/", "elefante.glb", scene, function (meshes) {
       model = meshes[0];
       model.scaling.scaleInPlace(MODEL_SCALE);
       updateModelPosition();
-    }
-  );
-
-  // Habilita gestos de rotação (XRGestures)
-  if (xr.baseExperience) {
-    const xrGestures = BABYLON.XRGestures.XRGesturesHelper.CreateDefault(
-      xr.baseExperience,
-      scene
-    );
-
-    xrGestures.twoFingerRotation = true; // ativa rotação com dois dedos
-    xrGestures.onTwoFingerRotationObservable.add((rotationDelta) => {
-      if (model)
-        model.rotate(BABYLON.Axis.Y, rotationDelta, BABYLON.Space.WORLD);
     });
   }
-});
 
-// ----- Atualiza posição do modelo à frente da câmera -----
-function updateModelPosition() {
-  if (!model) return;
-  const forward = camera.getForwardRay(MODEL_DISTANCE);
-  model.position = forward.origin.add(forward.direction.scale(MODEL_DISTANCE));
-}
+  // XRGestures para rotação de dois dedos
+  if (xr.baseExperience) {
+    const xrGestures = XRGesturesHelper.CreateDefault(xr.baseExperience, scene);
+    xrGestures.twoFingerRotation = true;
+
+    xrGestures.onTwoFingerRotationObservable.add((rotationDelta) => {
+      if (model) {
+        // rotaciona no eixo Y
+        model.rotate(Axis.Y, rotationDelta, Space.WORLD);
+      }
+    });
+  }
+
+  // Atualiza posição do modelo toda vez que clicar (mesmo comportamento do "select")
+  xr.baseExperience.input.onControllerAddedObservable.add((controller) => {
+    controller.onMotionControllerInitObservable.add(() => {
+      controller.onMainButtonStateChangedObservable.add(() => {
+        if (model) updateModelPosition();
+      });
+    });
+  });
+});
 
 // ----- Loop de render -----
 engine.runRenderLoop(() => {
