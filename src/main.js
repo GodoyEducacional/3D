@@ -23,6 +23,9 @@ let controller;
 let model = null;
 let modelLoading = false;
 
+const MODEL_DISTANCE = 1.5; // distância fixa à frente da câmera (metros)
+const MODEL_SCALE = 0.02; // escala fixa
+
 startBtn.addEventListener("click", () => {
   startBtn.style.display = "none";
   init();
@@ -50,11 +53,12 @@ function init() {
     ARButton.createButton(renderer, { requiredFeatures: ["hit-test"] })
   );
 
+  // Luz
   const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
   light.position.set(0.5, 1, 0.25);
   scene.add(light);
 
-  // Controller para colocar modelo
+  // Controller para colocar/mover modelo
   controller = renderer.xr.getController(0);
   controller.addEventListener("select", onSelect);
   scene.add(controller);
@@ -62,21 +66,8 @@ function init() {
   window.addEventListener("resize", onWindowResize);
 }
 
-function onSelect(event) {
-  // Apenas coloca o modelo quando o controller dispara o select (sessão AR ativa)
-  const xrCamera = renderer.xr.getCamera(camera);
-  const raycaster = new THREE.Raycaster();
-
-  // Raycast central da tela
-  raycaster.setFromCamera({ x: 0, y: 0 }, xrCamera);
-
-  // Interseção com plano Y=0 como fallback
-  const planeY = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-  const intersect = new THREE.Vector3();
-  raycaster.ray.intersectPlane(planeY, intersect);
-
-  const modeloEscala = 0.02;
-
+// Coloca ou move o modelo sempre à frente da câmera, mantendo tamanho fixo
+function onSelect() {
   if (!model && !modelLoading) {
     modelLoading = true;
     const loader = new GLTFLoader();
@@ -84,10 +75,10 @@ function onSelect(event) {
       "/elefante.glb",
       (gltf) => {
         model = gltf.scene;
-        model.scale.set(modeloEscala, modeloEscala, modeloEscala);
-        model.position.copy(intersect);
+        model.scale.set(MODEL_SCALE, MODEL_SCALE, MODEL_SCALE);
         scene.add(model);
         modelLoading = false;
+        updateModelPosition();
       },
       undefined,
       (err) => {
@@ -96,8 +87,17 @@ function onSelect(event) {
       }
     );
   } else if (model) {
-    model.position.copy(intersect);
+    updateModelPosition();
   }
+}
+
+// Atualiza a posição do modelo sempre à frente da câmera
+function updateModelPosition() {
+  const direction = new THREE.Vector3();
+  camera.getWorldDirection(direction);
+  const position = new THREE.Vector3();
+  position.copy(camera.position).add(direction.multiplyScalar(MODEL_DISTANCE));
+  model.position.copy(position);
 }
 
 function onWindowResize() {
