@@ -25,7 +25,8 @@ document.body.appendChild(startBtn);
 
 let camera, scene, renderer;
 let controller;
-let model;
+let model = null;
+let modelLoading = false; // Flag para evitar duplicação
 
 startBtn.addEventListener("click", () => {
   startBtn.style.display = "none";
@@ -44,10 +45,10 @@ function init() {
 
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
   renderer.xr.enabled = true;
   document.body.appendChild(renderer.domElement);
 
-  // ARButton disparado após tocar
   document.body.appendChild(
     ARButton.createButton(renderer, { requiredFeatures: ["hit-test"] })
   );
@@ -56,14 +57,12 @@ function init() {
   light.position.set(0.5, 1, 0.25);
   scene.add(light);
 
-  // Controller
   controller = renderer.xr.getController(0);
   controller.addEventListener("select", onSelect);
   scene.add(controller);
 
   window.addEventListener("resize", onWindowResize);
 
-  // Captura último toque para raycast
   renderer.domElement.addEventListener("touchstart", (e) => {
     if (e.touches.length === 1) {
       renderer.domElement.lastTouch = e.touches[0];
@@ -78,10 +77,9 @@ function onWindowResize() {
 }
 
 function onSelect() {
-  // Não reposiciona se estiver girando ou escalando
   if (window.isRotating) return;
 
-  // Usa toque central por padrão
+  // Ponto de toque central por padrão
   let touchX = window.innerWidth / 2;
   let touchY = window.innerHeight / 2;
   if (renderer.xr.isPresenting && renderer.domElement.lastTouch) {
@@ -89,48 +87,53 @@ function onSelect() {
     touchY = renderer.domElement.lastTouch.clientY;
   }
 
-  // Converte para coordenadas normalizadas
+  // Coordenadas normalizadas
   const x = (touchX / window.innerWidth) * 2 - 1;
   const y = -(touchY / window.innerHeight) * 2 + 1;
 
-  // Raycast do ponto de toque
+  // Raycast
   const raycaster = new THREE.Raycaster();
   raycaster.setFromCamera({ x, y }, camera);
 
-  // Interseção com plano Y=0 (chão)
   const planeY = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   const intersect = new THREE.Vector3();
   raycaster.ray.intersectPlane(planeY, intersect);
 
-  // Escala inicial
   const modeloEscala = 0.02;
 
-  if (!model) {
+  if (!model && !modelLoading) {
+    modelLoading = true;
     const loader = new GLTFLoader();
-    loader.load("/elefante.glb", (gltf) => {
-      model = gltf.scene;
-      model.scale.set(modeloEscala, modeloEscala, modeloEscala);
-      model.position.copy(intersect);
-      scene.add(model);
-
-      // Ativa rotação + escala por gesto
-      enableScaleAndRotation(model);
-    });
-  } else {
-    model.scale.set(modeloEscala, modeloEscala, modeloEscala);
+    loader.load(
+      "/elefante.glb",
+      (gltf) => {
+        model = gltf.scene;
+        model.scale.set(modeloEscala, modeloEscala, modeloEscala);
+        model.position.copy(intersect);
+        scene.add(model);
+        enableScaleAndRotation(model);
+        modelLoading = false;
+      },
+      undefined,
+      (err) => {
+        console.error("Erro ao carregar modelo:", err);
+        modelLoading = false;
+      }
+    );
+  } else if (model) {
+    // Move o modelo existente sem alterar escala
     model.position.copy(intersect);
   }
 }
 
-// Permite rotacionar e escalar o modelo com dois dedos
 function enableScaleAndRotation(obj) {
-  let lastRotation = 0;
-  let lastDistance = 0;
   let rotating = false;
+  let lastAngle = 0;
+  let lastDistance = 0;
 
   renderer.domElement.addEventListener("touchstart", (e) => {
     if (e.touches.length === 2) {
-      lastRotation = getAngle(e.touches[0], e.touches[1]);
+      lastAngle = getAngle(e.touches[0], e.touches[1]);
       lastDistance = getDistance(e.touches[0], e.touches[1]);
       rotating = true;
       window.isRotating = true;
@@ -139,16 +142,21 @@ function enableScaleAndRotation(obj) {
 
   renderer.domElement.addEventListener("touchmove", (e) => {
     if (rotating && e.touches.length === 2) {
-      // Rotação
-      const newRotation = getAngle(e.touches[0], e.touches[1]);
-      const rotChange = newRotation - lastRotation;
-      obj.rotation.y += (rotChange * Math.PI) / 180;
-      lastRotation = newRotation;
+      const newAngle = getAngle(e.touches[0], e.touches[1]);
+      const angleDiff = newAngle - lastAngle;
+      obj.rotation.y += (angleDiff * Math.PI) / 180;
+      lastAngle = newAngle;
 
-      // Escala (pinça)
       const newDistance = getDistance(e.touches[0], e.touches[1]);
-      const scaleChange = newDistance / lastDistance;
+      let scaleChange = newDistance / lastDistance;
       obj.scale.multiplyScalar(scaleChange);
+
+      // Limita a escala
+      obj.scale.clamp(
+        new THREE.Vector3(0.01, 0.01, 0.01),
+        new THREE.Vector3(2, 2, 2)
+      );
+
       lastDistance = newDistance;
     }
   });
