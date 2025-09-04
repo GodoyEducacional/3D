@@ -2,7 +2,6 @@ import * as THREE from "three";
 import { ARButton } from "three/examples/jsm/webxr/ARButton.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
-// Botão azul Start AR
 const startBtn = document.createElement("button");
 startBtn.textContent = "Start AR";
 startBtn.style.position = "fixed";
@@ -20,12 +19,9 @@ startBtn.style.zIndex = "1000";
 document.body.appendChild(startBtn);
 
 let camera, scene, renderer;
+let controller;
 let model = null;
 let modelLoading = false;
-
-let hitTestSource = null;
-let localSpace = null;
-let xrSession = null;
 
 startBtn.addEventListener("click", () => {
   startBtn.style.display = "none";
@@ -54,70 +50,53 @@ function init() {
     ARButton.createButton(renderer, { requiredFeatures: ["hit-test"] })
   );
 
-  // Luz
   const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
   light.position.set(0.5, 1, 0.25);
   scene.add(light);
 
+  // Controller para colocar modelo
+  controller = renderer.xr.getController(0);
+  controller.addEventListener("select", onSelect);
+  scene.add(controller);
+
   window.addEventListener("resize", onWindowResize);
-
-  // Evento de sessão AR
-  renderer.xr.addEventListener("sessionstart", async () => {
-    xrSession = renderer.xr.getSession();
-
-    // Hit test
-    const viewerSpace = await xrSession.requestReferenceSpace("viewer");
-    hitTestSource = await xrSession.requestHitTestSource({
-      space: viewerSpace,
-    });
-    localSpace = await xrSession.requestReferenceSpace("local");
-  });
-
-  renderer.xr.addEventListener("sessionend", () => {
-    hitTestSource = null;
-    localSpace = null;
-    xrSession = null;
-  });
 }
 
-// Função para colocar ou mover o modelo na superfície detectada
-function placeModelFromHitTest(frame) {
-  if (!hitTestSource || !frame) return;
+function onSelect(event) {
+  // Apenas coloca o modelo quando o controller dispara o select (sessão AR ativa)
+  const xrCamera = renderer.xr.getCamera(camera);
+  const raycaster = new THREE.Raycaster();
 
-  const hitTestResults = frame.getHitTestResults(hitTestSource);
-  if (hitTestResults.length > 0) {
-    const hit = hitTestResults[0];
-    const pose = hit.getPose(localSpace);
+  // Raycast central da tela
+  raycaster.setFromCamera({ x: 0, y: 0 }, xrCamera);
 
-    if (!model && !modelLoading) {
-      modelLoading = true;
-      const loader = new GLTFLoader();
-      loader.load(
-        "/elefante.glb",
-        (gltf) => {
-          model = gltf.scene;
-          model.scale.set(0.02, 0.02, 0.02); // Escala fixa
-          model.position.set(
-            pose.transform.position.x,
-            pose.transform.position.y,
-            pose.transform.position.z
-          );
-          scene.add(model);
-          modelLoading = false;
-        },
-        undefined,
-        (err) => {
-          console.error("Erro ao carregar modelo:", err);
-          modelLoading = false;
-        }
-      );
-    } else if (model) {
-      model.position.set(
-        pose.transform.position.x,
-        pose.transform.position.y,
-        pose.transform.position.z
-      );
-    }
+  // Interseção com plano Y=0 como fallback
+  const planeY = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  const intersect = new THREE.Vector3();
+  raycaster.ray.intersectPlane(planeY, intersect);
+
+  const modeloEscala = 0.02;
+
+  if (!model && !modelLoading) {
+    modelLoading = true;
+    const loader = new GLTFLoader();
+    loader.load(
+      "/elefante.glb",
+      (gltf) => {
+        model = gltf.scene;
+        model.scale.set(modeloEscala, modeloEscala, modeloEscala);
+        model.position.copy(intersect);
+        scene.add(model);
+        modelLoading = false;
+      },
+      undefined,
+      (err) => {
+        console.error("Erro ao carregar modelo:", err);
+        modelLoading = false;
+      }
+    );
+  } else if (model) {
+    model.position.copy(intersect);
   }
 }
 
@@ -131,9 +110,6 @@ function animate() {
   renderer.setAnimationLoop(render);
 }
 
-function render(timestamp, frame) {
-  // Atualiza posição do modelo via hit-test
-  if (frame) placeModelFromHitTest(frame);
-
+function render() {
   renderer.render(scene, camera);
 }
