@@ -25,7 +25,7 @@ let controller;
 let model = null;
 let modelLoading = false;
 
-// --- NOVAS VARIÁVEIS PARA ROTAÇÃO ---
+// --- VARIÁVEIS PARA ROTAÇÃO ---
 let isDragging = false;
 let previousTouchX = 0;
 const ROTATION_SENSITIVITY = 0.01; // Ajuste para deixar a rotação mais rápida ou lenta
@@ -127,9 +127,13 @@ function render() {
   renderer.render(scene, camera);
 }
 
-// --- NOVAS FUNÇÕES PARA GESTOS DE ROTAÇÃO ---
+// --- FUNÇÕES PARA GESTOS DE ROTAÇÃO (COM CORREÇÃO) ---
 
 function onTouchStart(event) {
+  // *** A CORREÇÃO ESTÁ AQUI ***
+  // Previne que o navegador intercepte o toque durante a sessão AR
+  event.preventDefault();
+
   // Só começa a arrastar se o modelo já existir e for apenas um dedo
   if (model && event.touches.length === 1) {
     isDragging = true;
@@ -139,11 +143,11 @@ function onTouchStart(event) {
 }
 
 function onTouchMove(event) {
-  // Se não estiver arrastando ou não houver modelo, não faz nada
-  if (!isDragging || !model) return;
-
   // Previne o comportamento padrão do navegador (como rolar a página)
   event.preventDefault();
+
+  // Se não estiver arrastando ou não houver modelo, não faz nada
+  if (!isDragging || !model) return;
 
   // Pega a posição X atual do toque
   const currentTouchX = event.touches[0].clientX;
