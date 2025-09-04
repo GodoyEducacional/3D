@@ -25,10 +25,14 @@ let controller;
 let model = null;
 let modelLoading = false;
 
-const MODEL_DISTANCE = 1.5; // metros
 const MODEL_SCALE = 0.02;
+const MODEL_DISTANCE = 1.5;
 
-// ----- Start AR -----
+// Variáveis para gestos de dois dedos
+let lastRotation = 0;
+let rotating = false;
+
+// ----- Inicialização -----
 startBtn.addEventListener("click", () => {
   startBtn.style.display = "none";
   init();
@@ -37,6 +41,7 @@ startBtn.addEventListener("click", () => {
 
 function init() {
   scene = new THREE.Scene();
+
   camera = new THREE.PerspectiveCamera(
     70,
     window.innerWidth / window.innerHeight,
@@ -58,18 +63,21 @@ function init() {
   light.position.set(0.5, 1, 0.25);
   scene.add(light);
 
+  // Controller para colocar modelo
   controller = renderer.xr.getController(0);
-  controller.addEventListener("select", onSelect);
+  controller.addEventListener("select", placeModel);
   scene.add(controller);
 
-  // Gestos para dois dedos (rotacionar)
-  setupTwoFingerRotation();
+  // Eventos de toque para rotacionar
+  renderer.domElement.addEventListener("touchstart", onTouchStart);
+  renderer.domElement.addEventListener("touchmove", onTouchMove);
+  renderer.domElement.addEventListener("touchend", onTouchEnd);
 
   window.addEventListener("resize", onWindowResize);
 }
 
-// ----- Colocar modelo à frente da câmera -----
-function onSelect() {
+// ----- Coloca ou atualiza modelo -----
+function placeModel() {
   if (!model && !modelLoading) {
     modelLoading = true;
     const loader = new GLTFLoader();
@@ -78,9 +86,9 @@ function onSelect() {
       (gltf) => {
         model = gltf.scene;
         model.scale.set(MODEL_SCALE, MODEL_SCALE, MODEL_SCALE);
-        updateModelPosition();
         scene.add(model);
         modelLoading = false;
+        updateModelPosition();
       },
       undefined,
       (err) => {
@@ -93,7 +101,9 @@ function onSelect() {
   }
 }
 
+// ----- Mantém modelo à frente da câmera -----
 function updateModelPosition() {
+  if (!model) return;
   const direction = new THREE.Vector3();
   camera.getWorldDirection(direction);
   const position = new THREE.Vector3();
@@ -101,48 +111,49 @@ function updateModelPosition() {
   model.position.copy(position);
 }
 
-// ----- Rotação dois dedos -----
-function setupTwoFingerRotation() {
-  let lastAngle = 0;
-  let rotating = false;
-
-  renderer.domElement.addEventListener("touchstart", (e) => {
-    if (e.touches.length === 2 && model) {
-      const dx = e.touches[1].clientX - e.touches[0].clientX;
-      const dy = e.touches[1].clientY - e.touches[0].clientY;
-      lastAngle = Math.atan2(dy, dx);
-      rotating = true;
-    }
-  });
-
-  renderer.domElement.addEventListener("touchmove", (e) => {
-    if (rotating && e.touches.length === 2 && model) {
-      const dx = e.touches[1].clientX - e.touches[0].clientX;
-      const dy = e.touches[1].clientY - e.touches[0].clientY;
-      const angle = Math.atan2(dy, dx);
-      const delta = angle - lastAngle;
-      model.rotation.y += delta;
-      lastAngle = angle;
-    }
-  });
-
-  renderer.domElement.addEventListener("touchend", (e) => {
-    if (e.touches.length < 2) {
-      rotating = false;
-    }
-  });
+// ----- Gestos de dois dedos -----
+function onTouchStart(event) {
+  if (event.touches.length === 2 && model) {
+    lastRotation = getAngle(event.touches[0], event.touches[1]);
+    rotating = true;
+  }
 }
 
+function onTouchMove(event) {
+  if (rotating && event.touches.length === 2 && model) {
+    const newRotation = getAngle(event.touches[0], event.touches[1]);
+    const delta = newRotation - lastRotation;
+    model.rotation.y += (delta * Math.PI) / 180;
+    lastRotation = newRotation;
+  }
+}
+
+function onTouchEnd(event) {
+  if (event.touches.length < 2) {
+    rotating = false;
+  }
+}
+
+// ----- Helpers -----
+function getAngle(t1, t2) {
+  const dx = t2.clientX - t1.clientX;
+  const dy = t2.clientY - t1.clientY;
+  return (Math.atan2(dy, dx) * 180) / Math.PI;
+}
+
+// ----- Redimensionamento -----
 function onWindowResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
+// ----- Loop de render -----
 function animate() {
   renderer.setAnimationLoop(render);
 }
 
 function render() {
+  if (model) updateModelPosition();
   renderer.render(scene, camera);
 }
