@@ -26,11 +26,22 @@ let model = null;
 let modelLoading = false;
 
 const MODEL_DISTANCE = 1.5; // metros à frente da câmera
-const MODEL_SCALE = 0.02; // tamanho fixo na tela
+const MODEL_SCALE = 0.02; // tamanho fixo
 
-// Variáveis de rotação com dois dedos
+// Rotação com dois dedos
 let rotating = false;
 let lastAngle = 0;
+
+// Overlay para detectar gestos
+const touchOverlay = document.createElement("div");
+touchOverlay.style.position = "fixed";
+touchOverlay.style.top = "0";
+touchOverlay.style.left = "0";
+touchOverlay.style.width = "100%";
+touchOverlay.style.height = "100%";
+touchOverlay.style.zIndex = "999";
+touchOverlay.style.touchAction = "none"; // previne zoom nativo
+document.body.appendChild(touchOverlay);
 
 // ----- Inicialização -----
 startBtn.addEventListener("click", () => {
@@ -72,10 +83,13 @@ function init() {
 
   window.addEventListener("resize", onWindowResize);
 
-  // Eventos de toque para rotação com dois dedos
-  renderer.domElement.addEventListener("touchstart", onTouchStart);
-  renderer.domElement.addEventListener("touchmove", onTouchMove);
-  renderer.domElement.addEventListener("touchend", onTouchEnd);
+  // Eventos do overlay para rotação com dois dedos
+  touchOverlay.addEventListener("touchstart", onTouchStart);
+  touchOverlay.addEventListener("touchmove", onTouchMove);
+  touchOverlay.addEventListener("touchend", onTouchEnd);
+
+  // Evento do overlay para reposicionar com 1 dedo
+  touchOverlay.addEventListener("click", onSingleTouchMove);
 }
 
 // ----- Coloca ou move o modelo -----
@@ -105,6 +119,7 @@ function placeOrMoveModel() {
 
 // ----- Atualiza posição do modelo sempre à frente da câmera -----
 function updateModelPosition() {
+  if (!model) return;
   const direction = new THREE.Vector3();
   camera.getWorldDirection(direction);
   const position = new THREE.Vector3();
@@ -137,6 +152,24 @@ function onTouchMove(e) {
 
 function onTouchEnd(e) {
   if (e.touches.length < 2) rotating = false;
+}
+
+// ----- Reposicionamento com 1 dedo (click) -----
+function onSingleTouchMove(e) {
+  if (!model) return;
+
+  // Raycast central (ou próximo do clique)
+  const x = 0;
+  const y = 0;
+  const raycaster = new THREE.Raycaster();
+  raycaster.setFromCamera({ x, y }, camera);
+
+  // Interseção com plano Y=0
+  const planeY = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  const intersect = new THREE.Vector3();
+  raycaster.ray.intersectPlane(planeY, intersect);
+
+  model.position.copy(intersect);
 }
 
 // ----- Resize -----
