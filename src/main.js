@@ -32,7 +32,7 @@ const MODEL_SCALE = 0.02; // tamanho fixo
 let rotating = false;
 let lastAngle = 0;
 
-// Overlay para detectar gestos
+// Overlay para capturar toques
 const touchOverlay = document.createElement("div");
 touchOverlay.style.position = "fixed";
 touchOverlay.style.top = "0";
@@ -76,7 +76,7 @@ function init() {
   light.position.set(0.5, 1, 0.25);
   scene.add(light);
 
-  // Controller para colocar modelo
+  // Controller para colocar/mover modelo
   controller = renderer.xr.getController(0);
   controller.addEventListener("select", placeOrMoveModel);
   scene.add(controller);
@@ -114,7 +114,7 @@ function placeOrMoveModel() {
   }
 }
 
-// ----- Atualiza posição do modelo sempre à frente da câmera -----
+// ----- Atualiza posição do modelo à frente da câmera -----
 function updateModelPosition() {
   if (!model) return;
   const direction = new THREE.Vector3();
@@ -124,7 +124,7 @@ function updateModelPosition() {
   model.position.copy(position);
 }
 
-// ----- Eventos de toque para rotação com 2 dedos -----
+// ----- Eventos para rotação com dois dedos -----
 function onTouchStart(e) {
   if (e.touches.length === 2 && model) {
     rotating = true;
