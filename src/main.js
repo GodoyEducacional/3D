@@ -25,12 +25,14 @@ let controller;
 let model = null;
 let modelLoading = false;
 
-const MODEL_SCALE = 0.02;
 const MODEL_DISTANCE = 1.5;
+const MODEL_SCALE = 0.02;
 
-// Variáveis para gestos de dois dedos
+// Gestos
+let ongoingTouches = [];
 let lastRotation = 0;
-let rotating = false;
+let lastDistance = 0;
+let baseY = 0; // mantém altura fixa do modelo
 
 // ----- Inicialização -----
 startBtn.addEventListener("click", () => {
@@ -51,8 +53,8 @@ function init() {
 
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
-  renderer.setPixelRatio(window.devicePixelRatio);
   renderer.xr.enabled = true;
+  renderer.setPixelRatio(window.devicePixelRatio);
   document.body.appendChild(renderer.domElement);
 
   document.body.appendChild(
@@ -63,20 +65,18 @@ function init() {
   light.position.set(0.5, 1, 0.25);
   scene.add(light);
 
-  // Controller para colocar modelo
   controller = renderer.xr.getController(0);
   controller.addEventListener("select", placeModel);
   scene.add(controller);
 
-  // Eventos de toque para rotacionar
-  renderer.domElement.addEventListener("touchstart", onTouchStart);
-  renderer.domElement.addEventListener("touchmove", onTouchMove);
-  renderer.domElement.addEventListener("touchend", onTouchEnd);
-
   window.addEventListener("resize", onWindowResize);
+
+  renderer.domElement.addEventListener("touchstart", onTouchStart, false);
+  renderer.domElement.addEventListener("touchmove", onTouchMove, false);
+  renderer.domElement.addEventListener("touchend", onTouchEnd, false);
 }
 
-// ----- Coloca ou atualiza modelo -----
+// ----- Coloca modelo -----
 function placeModel() {
   if (!model && !modelLoading) {
     modelLoading = true;
@@ -86,6 +86,7 @@ function placeModel() {
       (gltf) => {
         model = gltf.scene;
         model.scale.set(MODEL_SCALE, MODEL_SCALE, MODEL_SCALE);
+        baseY = camera.position.y - 0.2; // altura fixa do modelo
         scene.add(model);
         modelLoading = false;
         updateModelPosition();
@@ -101,37 +102,58 @@ function placeModel() {
   }
 }
 
-// ----- Mantém modelo à frente da câmera -----
+// ----- Atualiza posição fixa à frente da câmera -----
 function updateModelPosition() {
   if (!model) return;
-  const direction = new THREE.Vector3();
-  camera.getWorldDirection(direction);
-  const position = new THREE.Vector3();
-  position.copy(camera.position).add(direction.multiplyScalar(MODEL_DISTANCE));
-  model.position.copy(position);
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  const pos = new THREE.Vector3();
+  pos.copy(camera.position).add(dir.multiplyScalar(MODEL_DISTANCE));
+  pos.y = baseY; // mantém altura fixa
+  model.position.copy(pos);
 }
 
-// ----- Gestos de dois dedos -----
-function onTouchStart(event) {
-  if (event.touches.length === 2 && model) {
-    lastRotation = getAngle(event.touches[0], event.touches[1]);
-    rotating = true;
+// ----- Gestos -----
+function onTouchStart(e) {
+  ongoingTouches = [...e.touches];
+  if (ongoingTouches.length === 2) {
+    lastRotation = getAngle(ongoingTouches[0], ongoingTouches[1]);
+    lastDistance = getDistance(ongoingTouches[0], ongoingTouches[1]);
   }
 }
 
-function onTouchMove(event) {
-  if (rotating && event.touches.length === 2 && model) {
-    const newRotation = getAngle(event.touches[0], event.touches[1]);
-    const delta = newRotation - lastRotation;
-    model.rotation.y += (delta * Math.PI) / 180;
-    lastRotation = newRotation;
+function onTouchMove(e) {
+  e.preventDefault();
+  if (!model) return;
+  const touches = [...e.touches];
+
+  // Rotação e escala com dois dedos
+  if (touches.length === 2 && ongoingTouches.length === 2) {
+    const newAngle = getAngle(touches[0], touches[1]);
+    const deltaRot = newAngle - lastRotation;
+    model.rotation.y += (deltaRot * Math.PI) / 180;
+    lastRotation = newAngle;
+
+    const newDist = getDistance(touches[0], touches[1]);
+    const scaleChange = newDist / lastDistance;
+    model.scale.multiplyScalar(scaleChange);
+    lastDistance = newDist;
+  }
+
+  // Mover com um dedo
+  if (touches.length === 1 && ongoingTouches.length === 1) {
+    const dx =
+      (touches[0].clientX - ongoingTouches[0].clientX) / window.innerWidth;
+    const dz =
+      (touches[0].clientY - ongoingTouches[0].clientY) / window.innerHeight;
+    model.position.x += dx * 2;
+    model.position.z += dz * 2;
+    ongoingTouches = touches;
   }
 }
 
-function onTouchEnd(event) {
-  if (event.touches.length < 2) {
-    rotating = false;
-  }
+function onTouchEnd(e) {
+  ongoingTouches = [...e.touches];
 }
 
 // ----- Helpers -----
@@ -141,19 +163,24 @@ function getAngle(t1, t2) {
   return (Math.atan2(dy, dx) * 180) / Math.PI;
 }
 
-// ----- Redimensionamento -----
+function getDistance(t1, t2) {
+  const dx = t2.clientX - t1.clientX;
+  const dy = t2.clientY - t1.clientY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+// ----- Resize -----
 function onWindowResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-// ----- Loop de render -----
+// ----- Loop -----
 function animate() {
   renderer.setAnimationLoop(render);
 }
 
 function render() {
-  if (model) updateModelPosition();
   renderer.render(scene, camera);
 }
