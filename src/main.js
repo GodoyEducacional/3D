@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { ARButton } from "three/examples/jsm/webxr/ARButton.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
+// ----- Botão Start AR -----
 const startBtn = document.createElement("button");
 startBtn.textContent = "Start AR";
 startBtn.style.position = "fixed";
@@ -18,18 +19,20 @@ startBtn.style.cursor = "pointer";
 startBtn.style.zIndex = "1000";
 document.body.appendChild(startBtn);
 
+// ----- Variáveis globais -----
 let camera, scene, renderer;
 let controller;
 let model = null;
 let modelLoading = false;
 
-const MODEL_DISTANCE = 1.5; // distância fixa à frente da câmera (metros)
-const MODEL_SCALE = 0.02; // escala fixa
+const MODEL_DISTANCE = 1.5; // metros à frente da câmera
+const MODEL_SCALE = 0.02; // tamanho fixo na tela
 
-// Variáveis para rotação com dois dedos
+// Variáveis de rotação com dois dedos
 let rotating = false;
-let lastRotationAngle = 0;
+let lastAngle = 0;
 
+// ----- Inicialização -----
 startBtn.addEventListener("click", () => {
   startBtn.style.display = "none";
   init();
@@ -52,52 +55,31 @@ function init() {
   renderer.xr.enabled = true;
   document.body.appendChild(renderer.domElement);
 
+  // Botão AR padrão
   document.body.appendChild(
     ARButton.createButton(renderer, { requiredFeatures: ["hit-test"] })
   );
 
+  // Luz
   const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
   light.position.set(0.5, 1, 0.25);
   scene.add(light);
 
+  // Controller para colocar modelo
   controller = renderer.xr.getController(0);
-  controller.addEventListener("select", onSelect);
+  controller.addEventListener("select", placeOrMoveModel);
   scene.add(controller);
 
   window.addEventListener("resize", onWindowResize);
 
-  // Eventos para detectar gesto de rotação
-  renderer.domElement.addEventListener("touchstart", (e) => {
-    if (e.touches.length === 2 && model) {
-      rotating = true;
-      lastRotationAngle = getAngle(e.touches[0], e.touches[1]);
-    }
-  });
-
-  renderer.domElement.addEventListener("touchmove", (e) => {
-    if (rotating && e.touches.length === 2 && model) {
-      const newAngle = getAngle(e.touches[0], e.touches[1]);
-      const delta = newAngle - lastRotationAngle;
-      model.rotation.y += (delta * Math.PI) / 180; // rotação em radianos
-      lastRotationAngle = newAngle;
-    }
-  });
-
-  renderer.domElement.addEventListener("touchend", (e) => {
-    if (e.touches.length < 2) {
-      rotating = false;
-    }
-  });
+  // Eventos de toque para rotação com dois dedos
+  renderer.domElement.addEventListener("touchstart", onTouchStart);
+  renderer.domElement.addEventListener("touchmove", onTouchMove);
+  renderer.domElement.addEventListener("touchend", onTouchEnd);
 }
 
-// Helper para calcular ângulo entre dois dedos
-function getAngle(t1, t2) {
-  const dx = t2.clientX - t1.clientX;
-  const dy = t2.clientY - t1.clientY;
-  return (Math.atan2(dy, dx) * 180) / Math.PI;
-}
-
-function onSelect() {
+// ----- Coloca ou move o modelo -----
+function placeOrMoveModel() {
   if (!model && !modelLoading) {
     modelLoading = true;
     const loader = new GLTFLoader();
@@ -121,6 +103,7 @@ function onSelect() {
   }
 }
 
+// ----- Atualiza posição do modelo sempre à frente da câmera -----
 function updateModelPosition() {
   const direction = new THREE.Vector3();
   camera.getWorldDirection(direction);
@@ -129,12 +112,41 @@ function updateModelPosition() {
   model.position.copy(position);
 }
 
+// ----- Eventos de toque para rotação -----
+function onTouchStart(e) {
+  if (e.touches.length === 2 && model) {
+    rotating = true;
+    lastAngle = Math.atan2(
+      e.touches[1].clientY - e.touches[0].clientY,
+      e.touches[1].clientX - e.touches[0].clientX
+    );
+  }
+}
+
+function onTouchMove(e) {
+  if (rotating && e.touches.length === 2 && model) {
+    const newAngle = Math.atan2(
+      e.touches[1].clientY - e.touches[0].clientY,
+      e.touches[1].clientX - e.touches[0].clientX
+    );
+    const delta = newAngle - lastAngle;
+    model.rotation.y += delta; // já em radianos
+    lastAngle = newAngle;
+  }
+}
+
+function onTouchEnd(e) {
+  if (e.touches.length < 2) rotating = false;
+}
+
+// ----- Resize -----
 function onWindowResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
+// ----- Loop de animação -----
 function animate() {
   renderer.setAnimationLoop(render);
 }
