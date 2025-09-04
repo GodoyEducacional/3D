@@ -27,9 +27,10 @@ let modelLoading = false;
 
 // --- VARIÁVEIS PARA A NOVA LÓGICA DE ROTAÇÃO ---
 let isDragging = false;
-// Usaremos um THREE.Vector3 para uma medição mais precisa da posição do controle
+let previousTouchX = 0;
 let previousControllerPosition = new THREE.Vector3();
-const ROTATION_SENSITIVITY = 2; // Ajuste a sensibilidade conforme necessário
+const ROTATION_SENSITIVITY = 0.01; // Ajuste a sensibilidade conforme necessário
+let touchStartX = 0;
 
 const MODEL_DISTANCE = 1.5;
 const MODEL_SCALE = 0.02;
@@ -55,6 +56,11 @@ function init() {
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.xr.enabled = true;
   document.body.appendChild(renderer.domElement);
+
+  // Adiciona eventos de toque na tela
+  renderer.domElement.addEventListener('touchstart', onTouchStart, false);
+  renderer.domElement.addEventListener('touchmove', onTouchMove, false);
+  renderer.domElement.addEventListener('touchend', onTouchEnd, false);
 
   document.body.appendChild(
     ARButton.createButton(renderer, { requiredFeatures: ["hit-test"] })
@@ -114,6 +120,30 @@ function onSelectEnd() {
   isDragging = false;
 }
 
+// ----- Eventos de Toque -----
+function onTouchStart(event) {
+  if (model) {
+    event.preventDefault();
+    isDragging = true;
+    touchStartX = event.touches[0].clientX;
+    previousTouchX = touchStartX;
+  }
+}
+
+function onTouchMove(event) {
+  if (isDragging && model) {
+    event.preventDefault();
+    const touchX = event.touches[0].clientX;
+    const deltaX = (touchX - previousTouchX) * ROTATION_SENSITIVITY;
+    model.rotation.y += deltaX;
+    previousTouchX = touchX;
+  }
+}
+
+function onTouchEnd(event) {
+  isDragging = false;
+}
+
 // ----- Posição e Redimensionamento -----
 
 function updateModelPosition() {
@@ -137,18 +167,17 @@ function animate() {
   renderer.setAnimationLoop(render);
 }
 
-// *** A MÁGICA ACONTECE AQUI ***
 function render() {
-  // Se o usuário está arrastando o dedo...
-  if (isDragging && model) {
-    // Calcula o deslocamento do controle desde o último quadro
-    const deltaX = controller.position.x - previousControllerPosition.x;
-
-    // Aplica a rotação baseada nesse deslocamento
-    model.rotation.y += deltaX * ROTATION_SENSITIVITY;
-
-    // Atualiza a posição "anterior" para ser a posição "atual" no próximo quadro
-    previousControllerPosition.copy(controller.position);
+  if (model) {
+    // Mantém o modelo sempre de frente para a câmera no eixo Y
+    const cameraDirection = new THREE.Vector3();
+    camera.getWorldDirection(cameraDirection);
+    cameraDirection.y = 0; // Mantém apenas a rotação no eixo Y
+    
+    // A rotação do modelo é mantida independente, apenas atualizamos a posição
+    if (!isDragging) {
+      updateModelPosition();
+    }
   }
 
   renderer.render(scene, camera);
